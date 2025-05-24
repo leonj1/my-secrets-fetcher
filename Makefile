@@ -1,4 +1,4 @@
-.PHONY: start stop restart status terraform-build terraform-init terraform-plan terraform-apply terraform-destroy setup-infrastructure build-app run-app test-app clean localstack-status dotnet-build dotnet-run dotnet-clean full-setup
+.PHONY: start stop restart status terraform-build terraform-init terraform-plan terraform-apply terraform-destroy setup-infrastructure build-app run-app test-app clean localstack-status dotnet-build dotnet-run dotnet-clean full-setup health-check
 
 start:
 	docker-compose up -d
@@ -69,6 +69,10 @@ test-app-enhanced: full-setup dotnet-run
 localstack-status:
 	@echo "=== LocalStack Health Check ==="
 	curl -s http://localhost:4566/_localstack/health | jq . || echo "LocalStack not responding or jq not installed"
+
+health-check:
+	@echo "Running comprehensive health check..."
+	./scripts/health-check.sh
 
 test-secrets:
 	@echo "=== Testing Secret Retrieval ==="
