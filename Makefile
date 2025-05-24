@@ -1,4 +1,4 @@
-.PHONY: start stop restart status terraform-build terraform-init terraform-plan terraform-apply terraform-destroy setup-infrastructure build-app run-app test-app clean localstack-status dotnet-build dotnet-run dotnet-clean full-setup health-check
+.PHONY: start stop restart status terraform-build terraform-init terraform-plan terraform-apply terraform-destroy setup-infrastructure build-app run-app test-app clean localstack-status dotnet-build dotnet-run dotnet-clean full-setup health-check cleanup
 
 start:
 	docker-compose up -d
@@ -89,3 +89,7 @@ clean:
 	rm -rf terraform/.terraform
 	rm -f terraform/terraform.tfstate*
 	cd src/SecretsManager && dotnet clean
+
+cleanup:
+	@echo "Running comprehensive cleanup..."
+	./scripts/cleanup.sh
