@@ -1,4 +1,4 @@
-.PHONY: start stop restart status terraform-build terraform-init terraform-plan terraform-apply terraform-destroy setup-infrastructure
+.PHONY: start stop restart status terraform-build terraform-init terraform-plan terraform-apply terraform-destroy setup-infrastructure build-app run-app test-app clean localstack-status
 
 start:
 	docker-compose up -d
@@ -31,3 +31,36 @@ terraform-destroy:
 
 setup-infrastructure: start terraform-apply
 	@echo "Infrastructure setup complete"
+
+# Development and Testing
+build-app:
+	cd src/SecretsManager && dotnet build
+
+run-app: build-app
+	cd src/SecretsManager && dotnet run
+
+test-app: setup-infrastructure build-app
+	@echo "Testing application..."
+	cd src/SecretsManager && dotnet run
+	@echo "Application test complete"
+
+# Utilities
+localstack-status:
+	@echo "=== LocalStack Health Check ==="
+	curl -s http://localhost:4566/_localstack/health | jq . || echo "LocalStack not responding or jq not installed"
+
+test-secrets:
+	@echo "=== Testing Secret Retrieval ==="
+	curl -X POST "http://localhost:4566/" \
+		-H "Content-Type: application/x-amz-json-1.1" \
+		-H "X-Amz-Target: secretsmanager.GetSecretValue" \
+		-H "Authorization: AWS4-HMAC-SHA256 Credential=test/20250524/us-east-1/secretsmanager/aws4_request, SignedHeaders=host;x-amz-date, Signature=test" \
+		-d '{"SecretId": "dotnet-app-secrets"}' | jq . || echo "Failed to retrieve secrets"
+
+# Clean up
+clean:
+	docker-compose down -v
+	docker system prune -f
+	rm -rf terraform/.terraform
+	rm -f terraform/terraform.tfstate*
+	cd src/SecretsManager && dotnet clean
