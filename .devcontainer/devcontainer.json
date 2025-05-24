@@ -1,0 +1,68 @@
+{
+  "name": ".NET Secrets Manager with LocalStack",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "devcontainer",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csharp",
+        "ms-dotnettools.csdevkit",
+        "ms-vscode.vscode-json",
+        "hashicorp.terraform",
+        "ms-azuretools.vscode-docker",
+        "ms-vscode.makefile-tools",
+        "amazonwebservices.aws-toolkit-vscode",
+        "redhat.vscode-yaml",
+        "ms-vscode.powershell",
+        "formulahendry.dotnet-test-explorer",
+        "jmrog.vscode-nuget-package-manager"
+      ],
+      "settings": {
+        "dotnet.defaultSolution": "src/SecretsManager/SecretsManager.sln",
+        "omnisharp.enableEditorConfigSupport": true,
+        "omnisharp.enableRoslynAnalyzers": true,
+        "files.exclude": {
+          "**/bin": true,
+          "**/obj": true
+        },
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "aws.telemetry": false
+      }
+    }
+  },
+
+  "forwardPorts": [4566, 5000, 5001],
+  "portsAttributes": {
+    "4566": {
+      "label": "LocalStack",
+      "onAutoForward": "notify"
+    },
+    "5000": {
+      "label": ".NET HTTP",
+      "onAutoForward": "silent"
+    },
+    "5001": {
+      "label": ".NET HTTPS",
+      "onAutoForward": "silent"
+    }
+  },
+
+  "postCreateCommand": "chmod +x .devcontainer/setup.sh && .devcontainer/setup.sh",
+  
+  "remoteUser": "vscode",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": true,
+      "installOhMyZsh": true,
+      "upgradePackages": true
+    },
+    "ghcr.io/devcontainers/features/git:1": {
+      "ppa": true,
+      "version": "latest"
+    }
+  }
+}

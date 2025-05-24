@@ -1,0 +1,769 @@
+# Step-by-Step Guide: .NET Application with AWS Secrets Manager
+
+This guide walks through creating a .NET Core application that reads secrets from AWS Secrets Manager and manages them as environment variables or in an .env file, using LocalStack for local development.
+
+## Prerequisites Setup
+
+### Step 1: Initialize Project Directory
+Create a new project directory and initialize the basic structure:
+```bash
+mkdir dotnet-secrets-app
+cd dotnet-secrets-app
+mkdir src terraform docker
+```
+
+### Step 2: Create Docker Compose for LocalStack
+Create `docker-compose.yml` to run LocalStack (AWS services locally):
+```yaml
+version: '3.8'
+services:
+  localstack:
+    image: localstack/localstack:latest
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=secretsmanager,sts,iam
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+    volumes:
+      - "./tmp/localstack:/tmp/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+```
+
+### Step 3: Start LocalStack
+Start LocalStack services:
+```bash
+docker-compose up -d
+```
+
+## Makefile Creation
+
+### Step 4: Create Basic Makefile Structure
+Create `Makefile` with LocalStack management targets:
+```makefile
+.PHONY: start stop restart status
+
+start:
+	docker-compose up -d
+	@echo "LocalStack started"
+
+stop:
+	docker-compose down
+	@echo "LocalStack stopped"
+
+restart: stop start
+	@echo "LocalStack restarted"
+
+status:
+	docker-compose ps
+```
+
+### Step 5: Test Makefile Targets
+Verify Makefile functionality:
+```bash
+make stop
+make start
+make status
+```
+
+## Terraform Infrastructure Setup
+
+### Step 6: Create Terraform Dockerfile
+Create `docker/Dockerfile.terraform`:
+```dockerfile
+FROM hashicorp/terraform:latest
+
+WORKDIR /terraform
+
+COPY terraform/ .
+
+RUN terraform init
+
+ENTRYPOINT ["terraform"]
+```
+
+### Step 7: Create Terraform Configuration Directory
+Initialize Terraform configuration:
+```bash
+cd terraform
+touch main.tf variables.tf outputs.tf provider.tf
+```
+
+### Step 8: Configure Terraform Provider
+Create `terraform/provider.tf` for LocalStack:
+```hcl
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region                      = "us-east-1"
+  access_key                  = "test"
+  secret_key                  = "test"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+
+  endpoints {
+    secretsmanager = "http://localhost:4566"
+    sts           = "http://localhost:4566"
+    iam           = "http://localhost:4566"
+  }
+}
+```
+
+### Step 9: Define Terraform Variables
+Create `terraform/variables.tf`:
+```hcl
+variable "secrets" {
+  description = "Map of secrets to create"
+  type = map(object({
+    name        = string
+    description = string
+    secret_data = map(string)
+  }))
+  default = {
+    app_secrets = {
+      name        = "dotnet-app-secrets"
+      description = "Application secrets for .NET app"
+      secret_data = {
+        database_url    = "postgresql://localhost:5432/mydb"
+        api_key        = "your-api-key-here"
+        jwt_secret     = "your-jwt-secret"
+        redis_url      = "redis://localhost:6379"
+      }
+    }
+  }
+}
+```
+
+### Step 10: Create Secrets Manager Resources
+Create `terraform/main.tf`:
+```hcl
+resource "aws_secretsmanager_secret" "app_secrets" {
+  for_each    = var.secrets
+  name        = each.value.name
+  description = each.value.description
+}
+
+resource "aws_secretsmanager_secret_version" "app_secrets" {
+  for_each      = var.secrets
+  secret_id     = aws_secretsmanager_secret.app_secrets[each.key].id
+  secret_string = jsonencode(each.value.secret_data)
+}
+```
+
+### Step 11: Define Terraform Outputs
+Create `terraform/outputs.tf`:
+```hcl
+output "secret_arns" {
+  description = "ARNs of created secrets"
+  value = {
+    for k, v in aws_secretsmanager_secret.app_secrets : k => v.arn
+  }
+}
+
+output "secret_names" {
+  description = "Names of created secrets"
+  value = {
+    for k, v in aws_secretsmanager_secret.app_secrets : k => v.name
+  }
+}
+```
+
+### Step 12: Update Makefile for Terraform
+Extend `Makefile` with Terraform targets:
+```makefile
+.PHONY: terraform-build terraform-init terraform-plan terraform-apply terraform-destroy
+
+terraform-build:
+	docker build -f docker/Dockerfile.terraform -t terraform-local .
+
+terraform-init: terraform-build
+	docker run --rm --network host -v $(PWD)/terraform:/terraform terraform-local init
+
+terraform-plan: terraform-init
+	docker run --rm --network host -v $(PWD)/terraform:/terraform terraform-local plan
+
+terraform-apply: terraform-init
+	docker run --rm --network host -v $(PWD)/terraform:/terraform terraform-local apply -auto-approve
+
+terraform-destroy:
+	docker run --rm --network host -v $(PWD)/terraform:/terraform terraform-local destroy -auto-approve
+
+setup-infrastructure: start terraform-apply
+	@echo "Infrastructure setup complete"
+```
+
+### Step 13: Apply Terraform Configuration
+Deploy the secrets to LocalStack:
+```bash
+make setup-infrastructure
+```
+
+## .NET Application Development
+
+### Step 14: Create .NET Core Project
+Initialize the .NET Core console application:
+```bash
+cd src
+dotnet new console -n SecretsManager
+cd SecretsManager
+dotnet add package AWSSDK.SecretsManager
+dotnet add package Microsoft.Extensions.Configuration
+dotnet add package Microsoft.Extensions.Configuration.Json
+dotnet add package Microsoft.Extensions.DependencyInjection
+dotnet add package Microsoft.Extensions.Hosting
+dotnet add package Newtonsoft.Json
+```
+
+### Step 15: Create Configuration Models
+Create `Models/SecretConfiguration.cs`:
+```csharp
+namespace SecretsManager.Models
+{
+    public class SecretConfiguration
+    {
+        public string SecretName { get; set; } = string.Empty;
+        public string Region { get; set; } = "us-east-1";
+        public string? ServiceUrl { get; set; }
+        public OutputMode OutputMode { get; set; } = OutputMode.EnvironmentVariables;
+        public string EnvFilePath { get; set; } = ".env";
+    }
+
+    public enum OutputMode
+    {
+        EnvironmentVariables,
+        EnvFile,
+        Both
+    }
+}
+```
+
+### Step 16: Create AWS Secrets Manager Service
+Create `Services/SecretsManagerService.cs`:
+```csharp
+using Amazon.SecretsManager;
+using Amazon.SecretsManager.Model;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+
+namespace SecretsManager.Services
+{
+    public interface ISecretsManagerService
+    {
+        Task<Dictionary<string, string>> GetSecretsAsync(string secretName);
+    }
+
+    public class SecretsManagerService : ISecretsManagerService
+    {
+        private readonly IAmazonSecretsManager _secretsManager;
+        private readonly ILogger<SecretsManagerService> _logger;
+
+        public SecretsManagerService(IAmazonSecretsManager secretsManager, ILogger<SecretsManagerService> logger)
+        {
+            _secretsManager = secretsManager;
+            _logger = logger;
+        }
+
+        public async Task<Dictionary<string, string>> GetSecretsAsync(string secretName)
+        {
+            try
+            {
+                var request = new GetSecretValueRequest { SecretId = secretName };
+                var response = await _secretsManager.GetSecretValueAsync(request);
+                
+                var secretString = response.SecretString;
+                var secrets = JsonConvert.DeserializeObject<Dictionary<string, string>>(secretString);
+                
+                _logger.LogInformation($"Successfully retrieved {secrets?.Count ?? 0} secrets from {secretName}");
+                return secrets ?? new Dictionary<string, string>();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Failed to retrieve secrets from {secretName}");
+                throw;
+            }
+        }
+    }
+}
+```
+
+### Step 17: Create Environment Manager Service
+Create `Services/EnvironmentManagerService.cs`:
+```csharp
+using SecretsManager.Models;
+using Microsoft.Extensions.Logging;
+
+namespace SecretsManager.Services
+{
+    public interface IEnvironmentManagerService
+    {
+        Task ApplySecretsAsync(Dictionary<string, string> secrets, SecretConfiguration config);
+    }
+
+    public class EnvironmentManagerService : IEnvironmentManagerService
+    {
+        private readonly ILogger<EnvironmentManagerService> _logger;
+
+        public EnvironmentManagerService(ILogger<EnvironmentManagerService> logger)
+        {
+            _logger = logger;
+        }
+
+        public async Task ApplySecretsAsync(Dictionary<string, string> secrets, SecretConfiguration config)
+        {
+            switch (config.OutputMode)
+            {
+                case OutputMode.EnvironmentVariables:
+                    SetEnvironmentVariables(secrets);
+                    break;
+                case OutputMode.EnvFile:
+                    await WriteEnvFileAsync(secrets, config.EnvFilePath);
+                    break;
+                case OutputMode.Both:
+                    SetEnvironmentVariables(secrets);
+                    await WriteEnvFileAsync(secrets, config.EnvFilePath);
+                    break;
+            }
+        }
+
+        private void SetEnvironmentVariables(Dictionary<string, string> secrets)
+        {
+            foreach (var secret in secrets)
+            {
+                Environment.SetEnvironmentVariable(secret.Key.ToUpper(), secret.Value);
+                _logger.LogInformation($"Set environment variable: {secret.Key.ToUpper()}");
+            }
+        }
+
+        private async Task WriteEnvFileAsync(Dictionary<string, string> secrets, string filePath)
+        {
+            var envContent = string.Join(Environment.NewLine, 
+                secrets.Select(kvp => $"{kvp.Key.ToUpper()}={kvp.Value}"));
+            
+            await File.WriteAllTextAsync(filePath, envContent);
+            _logger.LogInformation($"Written {secrets.Count} secrets to {filePath}");
+        }
+    }
+}
+```
+
+### Step 18: Create Application Configuration
+Create `appsettings.json`:
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft": "Warning",
+      "Microsoft.Hosting.Lifetime": "Information"
+    }
+  },
+  "SecretConfiguration": {
+    "SecretName": "dotnet-app-secrets",
+    "Region": "us-east-1",
+    "ServiceUrl": "http://localhost:4566",
+    "OutputMode": "Both",
+    "EnvFilePath": ".env"
+  }
+}
+```
+
+### Step 19: Create Main Application Logic
+Create `Services/ApplicationService.cs`:
+```csharp
+using SecretsManager.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace SecretsManager.Services
+{
+    public class ApplicationService
+    {
+        private readonly ISecretsManagerService _secretsManager;
+        private readonly IEnvironmentManagerService _environmentManager;
+        private readonly SecretConfiguration _config;
+        private readonly ILogger<ApplicationService> _logger;
+
+        public ApplicationService(
+            ISecretsManagerService secretsManager,
+            IEnvironmentManagerService environmentManager,
+            IOptions<SecretConfiguration> config,
+            ILogger<ApplicationService> logger)
+        {
+            _secretsManager = secretsManager;
+            _environmentManager = environmentManager;
+            _config = config.Value;
+            _logger = logger;
+        }
+
+        public async Task RunAsync()
+        {
+            try
+            {
+                _logger.LogInformation("Starting secrets retrieval process...");
+                
+                var secrets = await _secretsManager.GetSecretsAsync(_config.SecretName);
+                
+                if (secrets.Any())
+                {
+                    await _environmentManager.ApplySecretsAsync(secrets, _config);
+                    _logger.LogInformation("Secrets applied successfully");
+                }
+                else
+                {
+                    _logger.LogWarning("No secrets found");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Application failed");
+                throw;
+            }
+        }
+    }
+}
+```
+
+### Step 20: Configure Dependency Injection
+Update `Program.cs`:
+```csharp
+using Amazon.SecretsManager;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using SecretsManager.Models;
+using SecretsManager.Services;
+
+var host = Host.CreateDefaultBuilder(args)
+    .ConfigureServices((context, services) =>
+    {
+        // Configuration
+        services.Configure<SecretConfiguration>(
+            context.Configuration.GetSection("SecretConfiguration"));
+
+        // AWS Services
+        services.AddSingleton<IAmazonSecretsManager>(provider =>
+        {
+            var config = context.Configuration.GetSection("SecretConfiguration").Get<SecretConfiguration>();
+            var clientConfig = new AmazonSecretsManagerConfig
+            {
+                RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(config?.Region ?? "us-east-1")
+            };
+
+            if (!string.IsNullOrEmpty(config?.ServiceUrl))
+            {
+                clientConfig.ServiceURL = config.ServiceUrl;
+                clientConfig.UseHttp = true;
+            }
+
+            return new AmazonSecretsManagerClient("test", "test", clientConfig);
+        });
+
+        // Application Services
+        services.AddScoped<ISecretsManagerService, SecretsManagerService>();
+        services.AddScoped<IEnvironmentManagerService, EnvironmentManagerService>();
+        services.AddScoped<ApplicationService>();
+    })
+    .Build();
+
+var app = host.Services.GetRequiredService<ApplicationService>();
+await app.RunAsync();
+```
+
+## Testing and Validation
+
+### Step 21: Create Test Configuration
+Create `appsettings.Development.json`:
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Debug"
+    }
+  },
+  "SecretConfiguration": {
+    "SecretName": "dotnet-app-secrets",
+    "Region": "us-east-1",
+    "ServiceUrl": "http://localhost:4566",
+    "OutputMode": "Both",
+    "EnvFilePath": ".env"
+  }
+}
+```
+
+### Step 22: Add Build and Run Targets to Makefile
+Update `Makefile` with .NET targets:
+```makefile
+.PHONY: dotnet-build dotnet-run dotnet-clean
+
+dotnet-build:
+	cd src/SecretsManager && dotnet build
+
+dotnet-run: dotnet-build
+	cd src/SecretsManager && dotnet run
+
+dotnet-clean:
+	cd src/SecretsManager && dotnet clean
+
+full-setup: setup-infrastructure dotnet-build
+	@echo "Full setup complete"
+
+test-app: full-setup dotnet-run
+	@echo "Testing application..."
+	@echo "Checking environment variables:"
+	@env | grep -E "(DATABASE_URL|API_KEY|JWT_SECRET|REDIS_URL)" || echo "No secrets found in environment"
+	@echo "Checking .env file:"
+	@cat src/SecretsManager/.env 2>/dev/null || echo ".env file not found"
+```
+
+### Step 23: Create Health Check Script
+Create `scripts/health-check.sh`:
+```bash
+#!/bin/bash
+
+echo "=== LocalStack Health Check ==="
+curl -s http://localhost:4566/health | jq .
+
+echo -e "\n=== Secrets Manager Test ==="
+aws --endpoint-url=http://localhost:4566 secretsmanager list-secrets --region us-east-1
+
+echo -e "\n=== Testing Secret Retrieval ==="
+aws --endpoint-url=http://localhost:4566 secretsmanager get-secret-value \
+    --secret-id dotnet-app-secrets --region us-east-1 | jq -r .SecretString
+```
+
+### Step 24: Create Cleanup Script
+Create `scripts/cleanup.sh`:
+```bash
+#!/bin/bash
+
+echo "Cleaning up resources..."
+
+# Stop containers
+make stop
+
+# Clean up terraform
+make terraform-destroy
+
+# Clean up .NET artifacts
+make dotnet-clean
+
+# Remove generated files
+rm -f src/SecretsManager/.env
+rm -rf tmp/
+
+echo "Cleanup complete"
+```
+
+## Documentation and Final Steps
+
+### Step 25: Create Usage Documentation
+Create `README.md`:
+```markdown
+# .NET Secrets Manager Application
+
+This application demonstrates how to integrate .NET Core with AWS Secrets Manager using LocalStack for local development.
+
+## Quick Start
+
+1. Start the infrastructure: `make setup-infrastructure`
+2. Build and run the application: `make test-app`
+3. Check the generated `.env` file and environment variables
+
+## Available Commands
+
+- `make start` - Start LocalStack
+- `make stop` - Stop LocalStack
+- `make setup-infrastructure` - Deploy secrets using Terraform
+- `make dotnet-build` - Build the .NET application
+- `make dotnet-run` - Run the .NET application
+- `make test-app` - Full test including setup and validation
+
+## Configuration
+
+Modify `appsettings.json` to customize:
+- Secret names to retrieve
+- Output mode (environment variables, .env file, or both)
+- AWS region and endpoint configuration
+```
+
+### Step 26: Add Error Handling and Retry Logic
+Create `Services/RetryService.cs`:
+```csharp
+using Microsoft.Extensions.Logging;
+
+namespace SecretsManager.Services
+{
+    public class RetryService
+    {
+        private readonly ILogger<RetryService> _logger;
+
+        public RetryService(ILogger<RetryService> logger)
+        {
+            _logger = logger;
+        }
+
+        public async Task<T> ExecuteWithRetryAsync<T>(
+            Func<Task<T>> operation,
+            int maxRetries = 3,
+            TimeSpan? delay = null)
+        {
+            delay ??= TimeSpan.FromSeconds(1);
+            
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    return await operation();
+                }
+                catch (Exception ex) when (attempt < maxRetries)
+                {
+                    _logger.LogWarning($"Attempt {attempt} failed: {ex.Message}. Retrying in {delay}...");
+                    await Task.Delay(delay.Value);
+                }
+            }
+
+            return await operation(); // Final attempt without catching
+        }
+    }
+}
+```
+
+### Step 27: Add Configuration Validation
+Create `Validators/ConfigurationValidator.cs`:
+```csharp
+using SecretsManager.Models;
+using Microsoft.Extensions.Options;
+
+namespace SecretsManager.Validators
+{
+    public class ConfigurationValidator : IValidateOptions<SecretConfiguration>
+    {
+        public ValidateOptionsResult Validate(string? name, SecretConfiguration options)
+        {
+            if (string.IsNullOrEmpty(options.SecretName))
+            {
+                return ValidateOptionsResult.Fail("SecretName is required");
+            }
+
+            if (string.IsNullOrEmpty(options.Region))
+            {
+                return ValidateOptionsResult.Fail("Region is required");
+            }
+
+            if (options.OutputMode == OutputMode.EnvFile && string.IsNullOrEmpty(options.EnvFilePath))
+            {
+                return ValidateOptionsResult.Fail("EnvFilePath is required when OutputMode is EnvFile");
+            }
+
+            return ValidateOptionsResult.Success;
+        }
+    }
+}
+```
+
+### Step 28: Create Docker Support for Application
+Create `src/SecretsManager/Dockerfile`:
+```dockerfile
+FROM mcr.microsoft.com/dotnet/runtime:8.0 AS base
+WORKDIR /app
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY ["SecretsManager.csproj", "."]
+RUN dotnet restore "SecretsManager.csproj"
+COPY . .
+WORKDIR "/src"
+RUN dotnet build "SecretsManager.csproj" -c Release -o /app/build
+
+FROM build AS publish
+RUN dotnet publish "SecretsManager.csproj" -c Release -o /app/publish
+
+FROM base AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+ENTRYPOINT ["dotnet", "SecretsManager.dll"]
+```
+
+### Step 29: Add Integration Tests
+Create `tests/IntegrationTests.cs`:
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using SecretsManager.Services;
+using Xunit;
+
+namespace SecretsManager.Tests
+{
+    public class IntegrationTests : IClassFixture<TestFixture>
+    {
+        private readonly TestFixture _fixture;
+
+        public IntegrationTests(TestFixture fixture)
+        {
+            _fixture = fixture;
+        }
+
+        [Fact]
+        public async Task Should_Retrieve_Secrets_Successfully()
+        {
+            var secretsService = _fixture.Host.Services.GetRequiredService<ISecretsManagerService>();
+            
+            var secrets = await secretsService.GetSecretsAsync("dotnet-app-secrets");
+            
+            Assert.NotEmpty(secrets);
+            Assert.Contains("database_url", secrets.Keys);
+        }
+
+        [Fact]
+        public async Task Should_Apply_Secrets_To_Environment()
+        {
+            var environmentService = _fixture.Host.Services.GetRequiredService<IEnvironmentManagerService>();
+            var config = new SecretConfiguration { OutputMode = OutputMode.EnvironmentVariables };
+            var testSecrets = new Dictionary<string, string> { { "test_key", "test_value" } };
+            
+            await environmentService.ApplySecretsAsync(testSecrets, config);
+            
+            Assert.Equal("test_value", Environment.GetEnvironmentVariable("TEST_KEY"));
+        }
+    }
+}
+```
+
+### Step 30: Final Integration and Deployment
+Update the main `Makefile` with comprehensive targets:
+```makefile
+.PHONY: all clean test deploy
+
+all: clean setup-infrastructure dotnet-build test
+
+clean:
+	./scripts/cleanup.sh
+
+test: setup-infrastructure dotnet-build
+	cd src/SecretsManager && dotnet test
+	make test-app
+
+deploy-docker:
+	cd src/SecretsManager && docker build -t secrets-manager .
+	docker run --network host secrets-manager
+
+validate:
+	./scripts/health-check.sh
+	@echo "Validation complete"
+
+complete-workflow: clean all validate
+	@echo "Complete workflow finished successfully"
+```
+
+## Summary
+
+This guide provides a complete workflow for creating a .NET application that integrates with AWS Secrets Manager using LocalStack for local development. The application supports multiple output modes and includes comprehensive error handling, testing, and deployment options.
