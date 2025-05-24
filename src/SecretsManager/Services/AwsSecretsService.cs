@@ -2,7 +2,7 @@ using Amazon.SecretsManager;
 using Amazon.SecretsManager.Model;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Newtonsoft.Json;
+using System.Text.Json;
 using SecretsManager.Models;
 
 namespace SecretsManager.Services
@@ -38,7 +38,7 @@ namespace SecretsManager.Services
                 
                 _logger.LogInformation("Successfully retrieved secret from AWS Secrets Manager");
 
-                var secrets = JsonConvert.DeserializeObject<AppSecrets>(response.SecretString);
+                var secrets = JsonSerializer.Deserialize<AppSecrets>(response.SecretString);
                 
                 if (secrets == null)
                 {
