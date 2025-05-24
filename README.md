@@ -1,324 +1,304 @@
-# My Secrets Fetcher
+# .NET Secrets Manager Application
 
-A comprehensive demonstration of secure secrets management using AWS Secrets Manager with LocalStack for local development. This project showcases infrastructure as code, containerized development environments, and secure application configuration.
+This application demonstrates how to integrate .NET Core with AWS Secrets Manager using LocalStack for local development. It provides a complete workflow for managing secrets in a containerized development environment with Infrastructure as Code (IaC) using Terraform.
+
+## 🚀 Quick Start
+
+1. **Start the infrastructure**: `make setup-infrastructure`
+2. **Build and run the application**: `make test-app`
+3. **Check the generated `.env` file and environment variables**
+
+## 📋 Prerequisites
+
+- Docker and Docker Compose
+- .NET 7.0 SDK or later
+- Make utility
+- Git
 
 ## 🏗️ Architecture Overview
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Dev Container │    │    LocalStack   │    │  .NET App       │
+│   .NET App      │    │   LocalStack    │    │   Terraform     │
 │                 │    │                 │    │                 │
-│ • Terraform     │───▶│ • Secrets Mgr   │◀───│ • AWS SDK       │
-│ • AWS CLI       │    │ • S3            │    │ • Config Mgmt   │
-│ • .NET SDK      │    │ • IAM           │    │ • DI Container  │
+│ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
+│ │ Secrets     │ │◄──►│ │ Secrets     │ │◄──►│ │ IaC         │ │
+│ │ Service     │ │    │ │ Manager     │ │    │ │ Deployment  │ │
+│ └─────────────┘ │    │ └─────────────┘ │    │ └─────────────┘ │
+│                 │    │                 │    │                 │
+│ ┌─────────────┐ │    │ ┌─────────────┐ │    │                 │
+│ │ Environment │ │    │ │ IAM/STS     │ │    │                 │
+│ │ Manager     │ │    │ │ Services    │ │    │                 │
+│ └─────────────┘ │    │ └─────────────┘ │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-## 🚀 Features
+## 🛠️ Available Commands
 
-- **🔐 Secure Secrets Management**: AWS Secrets Manager integration
-- **🏠 Local Development**: LocalStack for AWS service emulation
-- **📦 Containerized Environment**: Complete dev container setup
-- **🏗️ Infrastructure as Code**: Terraform for resource provisioning
-- **⚙️ Modern .NET**: Dependency injection, configuration, and logging
-- **🛡️ Security Best Practices**: Secret masking and secure handling
+### Infrastructure Management
+- `make start` - Start LocalStack containers
+- `make stop` - Stop LocalStack containers
+- `make restart` - Restart LocalStack containers
+- `make status` - Show container status
+- `make setup-infrastructure` - Deploy complete infrastructure (LocalStack + Terraform)
 
-## 📋 Prerequisites
+### Development Commands
+- `make dotnet-build` - Build the .NET application
+- `make dotnet-run` - Build and run the .NET application
+- `make dotnet-clean` - Clean .NET build artifacts
+- `make full-setup` - Complete setup (infrastructure + application build)
 
-- **Docker**: For running LocalStack and dev containers
-- **VS Code**: With Dev Containers extension (recommended)
-- **Git**: For version control
+### Testing & Validation
+- `make test-app` - Run end-to-end application test
+- `make health-check` - Run comprehensive health diagnostics
+- `make localstack-status` - Check LocalStack service status
+- `make test-secrets` - Test direct secret retrieval
 
-## 🛠️ Quick Start
+### Terraform Operations
+- `make terraform-build` - Build Terraform Docker image
+- `make terraform-init` - Initialize Terraform
+- `make terraform-plan` - Plan Terraform changes
+- `make terraform-apply` - Apply Terraform configuration
+- `make terraform-destroy` - Destroy Terraform infrastructure
 
-### 1. Clone and Setup
-
-```bash
-git clone <repository-url>
-cd my-secrets-fetcher
-```
-
-### 2. Open in Dev Container
-
-```bash
-# Using VS Code
-code .
-# Then: Ctrl+Shift+P → "Dev Containers: Reopen in Container"
-
-# Or using CLI
-devcontainer up --workspace-folder .
-```
-
-### 3. Deploy Infrastructure
-
-```bash
-# Start LocalStack and deploy secrets
-make setup-infrastructure
-```
-
-### 4. Run the Application
-
-```bash
-# Build and run the .NET application
-cd src/SecretsManager
-dotnet run
-```
+### Cleanup
+- `make clean` - Basic cleanup (containers, build artifacts)
+- `make cleanup` - Comprehensive cleanup (everything + Docker pruning)
 
 ## 📁 Project Structure
 
 ```
 my-secrets-fetcher/
-├── .devcontainer/              # Development container configuration
-│   ├── devcontainer.json       # Dev container settings
-│   ├── docker-compose.yml      # LocalStack and services
-│   ├── Dockerfile              # Development environment
-│   └── setup.sh               # Environment setup script
+├── .devcontainer/              # VS Code dev container configuration
+│   ├── devcontainer.json
+│   ├── docker-compose.yml
+│   ├── Dockerfile
+│   ├── setup.sh
+│   └── README.md
 ├── docker/                     # Docker configurations
 │   └── Dockerfile.terraform    # Terraform container
-├── terraform/                  # Infrastructure as Code
-│   ├── main.tf                # Main Terraform configuration
-│   ├── variables.tf           # Variable definitions
-│   ├── outputs.tf             # Output definitions
-│   └── provider.tf            # AWS provider configuration
-├── src/SecretsManager/         # .NET Application
-│   ├── Models/                # Configuration models
-│   │   ├── AwsConfig.cs       # AWS configuration
-│   │   ├── SecretsManagerConfig.cs # Secrets Manager config
-│   │   └── AppSecrets.cs      # Application secrets model
-│   ├── Services/              # Application services
-│   │   ├── ISecretsService.cs # Service interface
-│   │   └── AwsSecretsService.cs # AWS implementation
+├── scripts/                    # Utility scripts
+│   ├── health-check.sh        # Health diagnostics
+│   └── cleanup.sh             # Environment cleanup
+├── src/SecretsManager/         # .NET application
+│   ├── Models/                # Data models
+│   │   ├── AppSecrets.cs
+│   │   ├── AwsConfig.cs
+│   │   └── SecretsManagerConfig.cs
+│   ├── Services/              # Business logic
+│   │   ├── ISecretsService.cs
+│   │   └── AwsSecretsService.cs
 │   ├── Program.cs             # Application entry point
-│   ├── appsettings.json       # Application configuration
+│   ├── appsettings.json       # Configuration
+│   ├── appsettings.Development.json
 │   └── SecretsManager.csproj  # Project file
-├── Makefile                   # Build and deployment commands
+├── terraform/                  # Infrastructure as Code
+│   ├── main.tf               # Main Terraform configuration
+│   ├── variables.tf          # Variable definitions
+│   ├── outputs.tf            # Output definitions
+│   └── provider.tf           # Provider configuration
+├── docker-compose.yml         # LocalStack services
+├── Makefile                   # Build automation
 └── README.md                  # This file
 ```
 
-## 🔧 Configuration
-
-### LocalStack Configuration
-
-The project uses LocalStack to emulate AWS services locally:
-
-- **Endpoint**: `http://localhost:4566`
-- **Region**: `us-east-1`
-- **Credentials**: `test` / `test` (LocalStack defaults)
+## ⚙️ Configuration
 
 ### Application Configuration
 
+The application can be configured through `appsettings.json`:
+
 ```json
 {
-  "AWS": {
+  "SecretConfiguration": {
+    "SecretName": "dotnet-app-secrets",
     "Region": "us-east-1",
-    "ServiceURL": "http://localhost:4566",
-    "AccessKey": "test",
-    "SecretKey": "test"
-  },
-  "SecretsManager": {
-    "SecretName": "dotnet-app-secrets"
+    "ServiceUrl": "http://localhost:4566",
+    "OutputMode": "Both",
+    "EnvFilePath": ".env"
   }
 }
 ```
 
-### Secret Structure
+**Configuration Options:**
+- `SecretName`: Name of the secret in AWS Secrets Manager
+- `Region`: AWS region (default: us-east-1)
+- `ServiceUrl`: LocalStack endpoint URL
+- `OutputMode`: How to output secrets (`EnvironmentVariables`, `EnvFile`, or `Both`)
+- `EnvFilePath`: Path for the .env file output
 
-The application expects secrets in the following JSON format:
+### Secret Management
 
-```json
-{
-  "database_url": "postgresql://localhost:5432/mydb",
-  "api_key": "your-api-key-here",
-  "jwt_secret": "your-jwt-secret",
-  "redis_url": "redis://localhost:6379"
-}
-```
+Secrets are managed through Terraform variables in `terraform/variables.tf`:
 
-## 🏗️ Infrastructure Components
-
-### Terraform Resources
-
-- **AWS Secrets Manager Secret**: Stores application configuration
-- **Secret Version**: Contains the actual secret data
-- **IAM Policies**: (Future enhancement for production)
-
-### LocalStack Services
-
-- **Secrets Manager**: Secret storage and retrieval
-- **S3**: Terraform state backend
-- **IAM**: Identity and access management
-
-## 🔨 Available Commands
-
-```bash
-# Infrastructure Management
-make setup-infrastructure    # Deploy infrastructure to LocalStack
-make destroy-infrastructure  # Destroy all infrastructure
-make terraform-plan         # Show Terraform execution plan
-
-# Development
-make build-app              # Build the .NET application
-make run-app               # Run the .NET application
-make test-secrets          # Test secret retrieval
-
-# Utilities
-make localstack-status     # Check LocalStack health
-make clean                # Clean build artifacts
-```
-
-## 🧪 Testing
-
-### Manual Testing
-
-1. **Infrastructure Deployment**:
-   ```bash
-   make setup-infrastructure
-   ```
-
-2. **Secret Verification**:
-   ```bash
-   # Check LocalStack health
-   curl -s http://localhost:4566/_localstack/health | jq
-
-   # List secrets
-   aws --endpoint-url=http://localhost:4566 secretsmanager list-secrets
-   ```
-
-3. **Application Testing**:
-   ```bash
-   cd src/SecretsManager
-   dotnet run
-   ```
-
-### Expected Output
-
-```
-info: SecretsManager.Program[0]
-      Starting Secrets Manager application
-info: SecretsManager.Services.AwsSecretsService[0]
-      Retrieving secret: dotnet-app-secrets
-info: SecretsManager.Services.AwsSecretsService[0]
-      Successfully retrieved secret from AWS Secrets Manager
-Retrieved Application Secrets:
-Database URL: postgresql://localhost:5432/mydb
-API Key: yo*************re
-JWT Secret: yo***********et
-Redis URL: redis://localhost:6379
-info: SecretsManager.Program[0]
-      Application completed successfully
-```
-
-## 🔐 Security Features
-
-### Secret Masking
-
-The application implements secure secret display:
-- Shows first 2 and last 2 characters
-- Masks middle characters with asterisks
-- Prevents accidental secret exposure in logs
-
-### Configuration Security
-
-- Secrets stored in AWS Secrets Manager (not in code)
-- Environment-specific configuration
-- Secure credential handling
-
-## 🏭 Production Considerations
-
-### AWS Configuration
-
-For production deployment:
-
-1. **Update Provider Configuration**:
-   ```hcl
-   provider "aws" {
-     region = var.aws_region
-     # Remove LocalStack endpoint
-   }
-   ```
-
-2. **Configure Real AWS Credentials**:
-   ```json
-   {
-     "AWS": {
-       "Region": "us-west-2",
-       "AccessKey": "${AWS_ACCESS_KEY_ID}",
-       "SecretKey": "${AWS_SECRET_ACCESS_KEY}"
-     }
-   }
-   ```
-
-3. **Add IAM Policies**:
-   - Least privilege access
-   - Resource-specific permissions
-   - Cross-account access if needed
-
-### Security Enhancements
-
-- **Encryption**: Enable KMS encryption for secrets
-- **Rotation**: Implement automatic secret rotation
-- **Monitoring**: Add CloudWatch logging and monitoring
-- **Access Control**: Implement fine-grained IAM policies
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **LocalStack Not Running**:
-   ```bash
-   docker-compose -f .devcontainer/docker-compose.yml up -d
-   ```
-
-2. **Terraform State Issues**:
-   ```bash
-   make destroy-infrastructure
-   make setup-infrastructure
-   ```
-
-3. **Secret Not Found**:
-   ```bash
-   # Verify secret exists
-   aws --endpoint-url=http://localhost:4566 secretsmanager describe-secret --secret-id dotnet-app-secrets
-   ```
-
-4. **Connection Issues**:
-   - Check LocalStack health: `curl http://localhost:4566/_localstack/health`
-   - Verify network connectivity
-   - Check firewall settings
-
-### Debug Mode
-
-Enable detailed logging by updating `appsettings.json`:
-
-```json
-{
-  "Logging": {
-    "LogLevel": {
-      "Default": "Debug",
-      "Microsoft": "Information"
+```hcl
+variable "secrets" {
+  description = "Map of secrets to create"
+  type = map(object({
+    name        = string
+    description = string
+    secret_data = map(string)
+  }))
+  default = {
+    app_secrets = {
+      name        = "dotnet-app-secrets"
+      description = "Application secrets for .NET app"
+      secret_data = {
+        database_url    = "postgresql://localhost:5432/mydb"
+        api_key        = "your-api-key-here"
+        jwt_secret     = "your-jwt-secret"
+        redis_url      = "redis://localhost:6379"
+      }
     }
   }
 }
 ```
 
-## 🤝 Contributing
+## 🔧 Development Workflow
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+### 1. Initial Setup
+```bash
+# Clone the repository
+git clone <repository-url>
+cd my-secrets-fetcher
 
-## 📄 License
+# Start the complete environment
+make setup-infrastructure
+```
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+### 2. Development Cycle
+```bash
+# Build and test the application
+make dotnet-build
+make dotnet-run
 
-## 🙏 Acknowledgments
+# Run health checks
+make health-check
 
-- **LocalStack**: For providing excellent AWS service emulation
-- **Terraform**: For infrastructure as code capabilities
-- **AWS SDK**: For seamless cloud integration
-- **.NET Community**: For excellent tooling and libraries
+# Test secret retrieval
+make test-secrets
+```
+
+### 3. Making Changes
+```bash
+# After code changes
+make dotnet-build
+make dotnet-run
+
+# After infrastructure changes
+make terraform-plan
+make terraform-apply
+```
+
+### 4. Cleanup
+```bash
+# Quick cleanup
+make clean
+
+# Complete cleanup (frees significant disk space)
+make cleanup
+```
+
+## 🐳 Container Development
+
+This project includes a complete VS Code dev container setup:
+
+```bash
+# Open in VS Code with dev containers extension
+code .
+
+# Or use the dev container directly
+docker-compose -f .devcontainer/docker-compose.yml up -d
+```
+
+The dev container includes:
+- .NET 8.0 SDK
+- AWS CLI
+- Terraform
+- Docker CLI
+- All necessary development tools
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+**LocalStack not responding:**
+```bash
+make health-check
+make restart
+```
+
+**Terraform state issues:**
+```bash
+make terraform-destroy
+make cleanup
+make setup-infrastructure
+```
+
+**Build failures:**
+```bash
+make dotnet-clean
+make dotnet-build
+```
+
+**Permission errors during cleanup:**
+```bash
+sudo make cleanup
+# or
+sudo ./scripts/cleanup.sh
+```
+
+### Health Diagnostics
+
+The health check script provides comprehensive diagnostics:
+
+```bash
+make health-check
+```
+
+This will check:
+- ✅ LocalStack service status
+- ✅ Secrets Manager availability
+- ✅ Secret retrieval functionality
+- ✅ Docker container health
+- ✅ Network connectivity
+
+### Logs and Debugging
+
+**View LocalStack logs:**
+```bash
+docker-compose logs localstack
+```
+
+**View application logs:**
+```bash
+make dotnet-run
+```
+
+**Debug Terraform:**
+```bash
+make terraform-plan
+```
+
+## 🚀 Production Considerations
+
+### Security
+- Replace default credentials in production
+- Use proper AWS IAM roles and policies
+- Implement secret rotation
+- Enable encryption at rest and in transit
+
+### Scalability
+- Consider using AWS ECS/EKS for container orchestration
+- Implement proper logging and monitoring
+- Use AWS Application Load Balancer for high availability
+- Implement circuit breakers and retry policies
+
+### Monitoring
+- Add health check endpoints
+- Implement structured logging
+- Use AWS CloudWatch for monitoring
+- Set up alerting for secret retrieval failures
 
 ## 📚 Additional Resources
 
@@ -327,6 +307,26 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 - [.NET Configuration Documentation](https://docs.microsoft.com/en-us/dotnet/core/extensions/configuration)
 
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests: `make test-app`
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🆘 Support
+
+For support and questions:
+- Check the troubleshooting section above
+- Run `make health-check` for diagnostics
+- Review the logs using the debugging commands
+- Open an issue in the repository
+
 ---
 
-**Built with ❤️ for secure, scalable application development**
+**Happy coding! 🎉**
