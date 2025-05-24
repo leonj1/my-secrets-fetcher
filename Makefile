@@ -1,4 +1,4 @@
-.PHONY: start stop restart status terraform-build terraform-init terraform-plan terraform-apply terraform-destroy setup-infrastructure build-app run-app test-app clean localstack-status
+.PHONY: start stop restart status terraform-build terraform-init terraform-plan terraform-apply terraform-destroy setup-infrastructure build-app run-app test-app clean localstack-status dotnet-build dotnet-run dotnet-clean full-setup
 
 start:
 	docker-compose up -d
@@ -43,6 +43,27 @@ test-app: setup-infrastructure build-app
 	@echo "Testing application..."
 	cd src/SecretsManager && dotnet run
 	@echo "Application test complete"
+
+# .NET specific targets (as specified in Step 22)
+dotnet-build:
+	cd src/SecretsManager && dotnet build
+
+dotnet-run: dotnet-build
+	cd src/SecretsManager && dotnet run
+
+dotnet-clean:
+	cd src/SecretsManager && dotnet clean
+
+full-setup: setup-infrastructure dotnet-build
+	@echo "Full setup complete"
+
+# Enhanced test target with validation (as specified in Step 22)
+test-app-enhanced: full-setup dotnet-run
+	@echo "Testing application..."
+	@echo "Checking environment variables:"
+	@env | grep -E "(DATABASE_URL|API_KEY|JWT_SECRET|REDIS_URL)" || echo "No secrets found in environment"
+	@echo "Checking .env file:"
+	@cat src/SecretsManager/.env 2>/dev/null || echo ".env file not found"
 
 # Utilities
 localstack-status:
