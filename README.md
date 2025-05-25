@@ -115,6 +115,8 @@ cat src/SecretsManager/.env
 - `./scripts/build-binaries.sh` - Alternative script to build all platforms
 
 ### Testing & Validation
+- `make test` - Run unit tests
+- `make dotnet-test` - Run unit tests (alternative)
 - `make test-app` - Run end-to-end application test
 - `make health-check` - Run comprehensive health diagnostics
 - `make localstack-status` - Check LocalStack service status

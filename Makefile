@@ -1,4 +1,4 @@
-.PHONY: start stop restart status terraform-build terraform-init terraform-plan terraform-apply terraform-destroy setup-infrastructure build-app run-app test-app clean localstack-status dotnet-build dotnet-run dotnet-clean build-windows build-linux build-macos build-macos-arm build-all clean-dist full-setup health-check cleanup
+.PHONY: start stop restart status terraform-build terraform-init terraform-plan terraform-apply terraform-destroy setup-infrastructure build-app run-app test-app clean localstack-status dotnet-build dotnet-run dotnet-clean dotnet-test test build-windows build-linux build-macos build-macos-arm build-all clean-dist full-setup health-check cleanup
 
 start:
 	docker-compose up -d
@@ -53,6 +53,11 @@ dotnet-run: dotnet-build
 
 dotnet-clean:
 	cd src/SecretsManager && dotnet clean
+
+dotnet-test:
+	cd src/SecretsManager.Tests && dotnet test
+
+test: dotnet-test
 
 # Single-file binary builds for multiple platforms
 build-windows:
