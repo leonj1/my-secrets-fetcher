@@ -2,6 +2,22 @@
 
 This application demonstrates how to integrate .NET Core with AWS Secrets Manager using LocalStack for local development. It provides a complete workflow for managing secrets in a containerized development environment with Infrastructure as Code (IaC) using Terraform.
 
+# Use Case
+
+This project fetches secrets from AWS Secrets Manager and applies them to the local development environment as environment variables or in an `.env` file. This allows developers to easily access sensitive information without exposing it in their source code.
+
+# How to Use
+1. Create secrets in AWS Secrets Manager
+2. Work in a project that expects secrets to be available as environment variables or in an `.env` file
+3. ./SecretsManager fetches the secrets from AWS Secrets Manager and applies them to the local development environment
+
+```
+# validate the value
+env | grep -E "(DATABASE_URL|API_KEY|JWT_SECRET|REDIS_URL)"
+# or
+cat src/SecretsManager/.env
+```
+
 ## 🚀 Quick Start
 
 1. **Start the infrastructure**: `make setup-infrastructure`
