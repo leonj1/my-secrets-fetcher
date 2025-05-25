@@ -1,6 +1,8 @@
-# .NET Secrets Manager Application
+# Universal Secrets Manager Application
 
-This application demonstrates how to integrate .NET Core with AWS Secrets Manager using LocalStack for local development. It provides a complete workflow for managing secrets in a containerized development environment with Infrastructure as Code (IaC) using Terraform.
+This application demonstrates how to integrate with AWS Secrets Manager using LocalStack for local development. It provides a complete workflow for managing secrets in a containerized development environment with Infrastructure as Code (IaC) using Terraform.
+
+**🐍 Python & 🔷 .NET Compatible** - Works with any programming language that can read environment variables or .env files!
 
 ## 🆕 NEW: DevContainer Secrets Management
 
@@ -59,6 +61,185 @@ env | grep -E "(DATABASE_URL|API_KEY|JWT_SECRET|REDIS_URL)"
 cat src/SecretsManager/.env
 ```
 
+## 🐍 Using with Python Projects
+
+This secrets manager works seamlessly with Python projects! The tool fetches secrets from AWS and makes them available through standard mechanisms that Python can easily consume.
+
+### Quick Start for Python Developers
+
+1. **Download the standalone binary** (no .NET installation required):
+   ```bash
+   # Download the appropriate binary for your platform
+   # Linux
+   wget https://github.com/your-repo/releases/latest/download/SecretsManager-linux
+   chmod +x SecretsManager-linux
+   
+   # macOS
+   wget https://github.com/your-repo/releases/latest/download/SecretsManager-macos
+   chmod +x SecretsManager-macos
+   
+   # Or build from source
+   make build-linux  # or build-macos, build-windows
+   ```
+
+2. **Configure your secrets** in AWS Secrets Manager or use the provided LocalStack setup
+
+3. **Run the secrets manager** before starting your Python application:
+   ```bash
+   ./SecretsManager-linux  # This creates .env file and sets environment variables
+   ```
+
+4. **Access secrets in your Python application**:
+
+### Method 1: Using Environment Variables
+
+```python
+import os
+
+# Access secrets that were set as environment variables
+database_url = os.getenv('DATABASE_URL')
+api_key = os.getenv('API_KEY')
+jwt_secret = os.getenv('JWT_SECRET')
+redis_url = os.getenv('REDIS_URL')
+
+print(f"Database URL: {database_url}")
+```
+
+### Method 2: Using .env Files with python-dotenv
+
+```bash
+# Install python-dotenv
+pip install python-dotenv
+```
+
+```python
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Access the secrets
+database_url = os.getenv('DATABASE_URL')
+api_key = os.getenv('API_KEY')
+jwt_secret = os.getenv('JWT_SECRET')
+redis_url = os.getenv('REDIS_URL')
+
+print(f"Database URL: {database_url}")
+```
+
+### Method 3: DevContainer Integration for Python
+
+Configure your Python DevContainer to automatically fetch secrets:
+
+```json
+{
+  "name": "Python Development Environment",
+  "image": "python:3.11",
+  "containerEnv": {
+    "DATABASE_URL": "${arn:aws:secretsmanager:us-east-1:123456789012:secret:db-url-abc123}",
+    "API_KEY": "${arn:aws:secretsmanager:us-east-1:123456789012:secret:api-key-def456}",
+    "OPENAI_API_KEY": "${arn:aws:secretsmanager:us-east-1:123456789012:secret:openai-key-ghi789}"
+  },
+  "postCreateCommand": "pip install -r requirements.txt"
+}
+```
+
+Your Python code can then access these directly:
+```python
+import os
+
+# These are automatically available as environment variables
+openai_key = os.getenv('OPENAI_API_KEY')
+database_url = os.getenv('DATABASE_URL')
+```
+
+### Integration Patterns for Python Projects
+
+#### 1. Startup Script Pattern
+```python
+# startup.py
+import subprocess
+import sys
+import os
+
+def fetch_secrets():
+    """Fetch secrets before starting the main application"""
+    try:
+        # Run the secrets manager
+        result = subprocess.run(['./SecretsManager'], 
+                              capture_output=True, text=True, check=True)
+        print("✅ Secrets fetched successfully")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Failed to fetch secrets: {e}")
+        return False
+
+if __name__ == "__main__":
+    if fetch_secrets():
+        # Import and run your main application
+        from your_app import main
+        main()
+    else:
+        sys.exit(1)
+```
+
+#### 2. Docker Container Pattern
+```dockerfile
+# Dockerfile for Python app
+FROM python:3.11-slim
+
+# Copy the secrets manager binary
+COPY dist/linux/SecretsManager /usr/local/bin/SecretsManager
+RUN chmod +x /usr/local/bin/SecretsManager
+
+# Copy your Python application
+COPY . /app
+WORKDIR /app
+
+# Install Python dependencies
+RUN pip install -r requirements.txt
+
+# Create startup script that fetches secrets then runs Python app
+RUN echo '#!/bin/bash\n/usr/local/bin/SecretsManager && python main.py' > /start.sh
+RUN chmod +x /start.sh
+
+CMD ["/start.sh"]
+```
+
+#### 3. CI/CD Pipeline Pattern
+```yaml
+# .github/workflows/deploy.yml
+steps:
+  - name: Fetch Secrets
+    run: |
+      # Download and run secrets manager
+      wget https://github.com/your-repo/releases/latest/download/SecretsManager-linux
+      chmod +x SecretsManager-linux
+      ./SecretsManager-linux
+      
+  - name: Run Python Tests
+    run: |
+      # Secrets are now available as environment variables
+      python -m pytest
+    env:
+      # Secrets are automatically available from previous step
+```
+
+### Python-Specific Configuration
+
+You can configure the secrets manager for Python projects by setting environment variables instead of using appsettings.json:
+
+```bash
+export AWS__REGION="us-east-1"
+export AWS__SERVICEURL="http://localhost:4566"
+export AWS__ACCESSKEY="test"
+export AWS__SECRETKEY="test"
+export SECRETSMANAGER__SECRETNAME="python-app-secrets"
+
+./SecretsManager
+```
+
 ## 🚀 Quick Start to Validate this Project
 
 1. **Start the infrastructure**: `make setup-infrastructure`
@@ -69,8 +250,8 @@ cat src/SecretsManager/.env
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   .NET App      │    │   LocalStack    │    │   Terraform     │
-│                 │    │                 │    │                 │
+│ Secrets Manager │    │   LocalStack    │    │   Terraform     │
+│   (Universal)   │    │                 │    │                 │
 │ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
 │ │ Secrets     │ │◄──►│ │ Secrets     │ │◄──►│ │ IaC         │ │
 │ │ Service     │ │    │ │ Manager     │ │    │ │ Deployment  │ │
@@ -81,6 +262,20 @@ cat src/SecretsManager/.env
 │ │ Service     │ │    │ │ Services    │ │    │                 │
 │ └─────────────┘ │    │ └─────────────┘ │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Your Applications                            │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────┐ │
+│  │   Python    │  │    .NET     │  │   Node.js   │  │   Go    │ │
+│  │     App     │  │     App     │  │     App     │  │   App   │ │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────┘ │
+│         │                │                │              │     │
+│         ▼                ▼                ▼              ▼     │
+│  ┌─────────────────────────────────────────────────────────────┐ │
+│  │        Environment Variables & .env Files                  │ │
+│  └─────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ## 🛠️ Available Commands
@@ -226,11 +421,20 @@ This will check:
 
 ## 📚 Additional Resources
 
+### General
 - [AWS Secrets Manager Documentation](https://docs.aws.amazon.com/secretsmanager/)
 - [LocalStack Documentation](https://docs.localstack.cloud/)
 - [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
-- [.NET Configuration Documentation](https://docs.microsoft.com/en-us/dotnet/core/extensions/configuration)
 - [VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers)
+
+### Python-Specific
+- [python-dotenv Documentation](https://pypi.org/project/python-dotenv/)
+- [Python os.environ Documentation](https://docs.python.org/3/library/os.html#os.environ)
+- [Python subprocess Documentation](https://docs.python.org/3/library/subprocess.html)
+- [Python Docker Best Practices](https://docs.docker.com/develop/dev-best-practices/)
+
+### .NET-Specific
+- [.NET Configuration Documentation](https://docs.microsoft.com/en-us/dotnet/core/extensions/configuration)
 
 ## 📄 License
 
