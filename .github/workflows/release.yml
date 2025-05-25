@@ -1,0 +1,127 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '7.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Run tests
+      run: dotnet test --configuration Release --verbosity normal
+      
+    - name: Build Windows binary
+      run: |
+        cd src/SecretsManager
+        dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ../../dist/windows
+        
+    - name: Build Linux binary
+      run: |
+        cd src/SecretsManager
+        dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o ../../dist/linux
+        
+    - name: Build macOS Intel binary
+      run: |
+        cd src/SecretsManager
+        dotnet publish -c Release -r osx-x64 --self-contained true -p:PublishSingleFile=true -o ../../dist/macos-intel
+        
+    - name: Build macOS ARM binary
+      run: |
+        cd src/SecretsManager
+        dotnet publish -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true -o ../../dist/macos-arm
+        
+    - name: Create release archives
+      run: |
+        cd dist
+        # Create Windows archive
+        cd windows && zip -r ../SecretsManager-windows-x64.zip . && cd ..
+        # Create Linux archive
+        cd linux && tar -czf ../SecretsManager-linux-x64.tar.gz . && cd ..
+        # Create macOS Intel archive
+        cd macos-intel && tar -czf ../SecretsManager-macos-intel-x64.tar.gz . && cd ..
+        # Create macOS ARM archive
+        cd macos-arm && tar -czf ../SecretsManager-macos-arm64.tar.gz . && cd ..
+        
+    - name: Generate release tag
+      id: tag
+      run: |
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        else
+          echo "tag=v$(date +'%Y.%m.%d')-$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.tag.outputs.tag }}
+        release_name: Release ${{ steps.tag.outputs.tag }}
+        body: |
+          ## Changes
+          - Automated release from commit ${{ github.sha }}
+          
+          ## Downloads
+          - **Windows**: SecretsManager-windows-x64.zip
+          - **Linux**: SecretsManager-linux-x64.tar.gz  
+          - **macOS Intel**: SecretsManager-macos-intel-x64.tar.gz
+          - **macOS ARM**: SecretsManager-macos-arm64.tar.gz
+        draft: false
+        prerelease: false
+        
+    - name: Upload Windows Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist/SecretsManager-windows-x64.zip
+        asset_name: SecretsManager-windows-x64.zip
+        asset_content_type: application/zip
+        
+    - name: Upload Linux Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist/SecretsManager-linux-x64.tar.gz
+        asset_name: SecretsManager-linux-x64.tar.gz
+        asset_content_type: application/gzip
+        
+    - name: Upload macOS Intel Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist/SecretsManager-macos-intel-x64.tar.gz
+        asset_name: SecretsManager-macos-intel-x64.tar.gz
+        asset_content_type: application/gzip
+        
+    - name: Upload macOS ARM Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist/SecretsManager-macos-arm64.tar.gz
+        asset_name: SecretsManager-macos-arm64.tar.gz
+        asset_content_type: application/gzip
