@@ -105,6 +105,15 @@ cat src/SecretsManager/.env
 - `make dotnet-clean` - Clean .NET build artifacts
 - `make full-setup` - Complete setup (infrastructure + application build)
 
+### 📦 Cross-Platform Binary Building
+- `make build-windows` - Build single-file binary for Windows (x64)
+- `make build-linux` - Build single-file binary for Linux (x64)
+- `make build-macos` - Build single-file binary for macOS Intel (x64)
+- `make build-macos-arm` - Build single-file binary for macOS Apple Silicon (ARM64)
+- `make build-all` - Build binaries for all platforms
+- `make clean-dist` - Clean distribution directory
+- `./scripts/build-binaries.sh` - Alternative script to build all platforms
+
 ### Testing & Validation
 - `make test-app` - Run end-to-end application test
 - `make health-check` - Run comprehensive health diagnostics
@@ -136,7 +145,8 @@ my-secrets-fetcher/
 │   └── Dockerfile.terraform    # Terraform container
 ├── scripts/                    # Utility scripts
 │   ├── health-check.sh        # Health diagnostics
-│   └── cleanup.sh             # Environment cleanup
+│   ├── cleanup.sh             # Environment cleanup
+│   └── build-binaries.sh      # ✨ NEW: Cross-platform binary builder
 ├── src/SecretsManager/         # .NET application
 │   ├── Models/                # Data models
 │   │   ├── AppSecrets.cs
@@ -280,13 +290,37 @@ make terraform-plan
 make terraform-apply
 ```
 
-### 4. Cleanup
+### 4. Cross-Platform Binary Deployment
+```bash
+# Build binaries for all platforms
+make build-all
+
+# Or build for specific platforms
+make build-windows    # Windows x64
+make build-linux      # Linux x64
+make build-macos      # macOS Intel
+make build-macos-arm  # macOS Apple Silicon
+
+# Alternative: Use the build script
+./scripts/build-binaries.sh
+
+# Binaries will be created in:
+# - dist/windows/SecretsManager.exe
+# - dist/linux/SecretsManager
+# - dist/macos-intel/SecretsManager
+# - dist/macos-arm/SecretsManager
+```
+
+### 5. Cleanup
 ```bash
 # Quick cleanup
 make clean
 
 # Complete cleanup (frees significant disk space)
 make cleanup
+
+# Clean only distribution binaries
+make clean-dist
 ```
 
 ## 🐳 Container Development

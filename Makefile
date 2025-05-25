@@ -1,4 +1,4 @@
-.PHONY: start stop restart status terraform-build terraform-init terraform-plan terraform-apply terraform-destroy setup-infrastructure build-app run-app test-app clean localstack-status dotnet-build dotnet-run dotnet-clean full-setup health-check cleanup
+.PHONY: start stop restart status terraform-build terraform-init terraform-plan terraform-apply terraform-destroy setup-infrastructure build-app run-app test-app clean localstack-status dotnet-build dotnet-run dotnet-clean build-windows build-linux build-macos build-macos-arm build-all clean-dist full-setup health-check cleanup
 
 start:
 	docker-compose up -d
@@ -53,6 +53,35 @@ dotnet-run: dotnet-build
 
 dotnet-clean:
 	cd src/SecretsManager && dotnet clean
+
+# Single-file binary builds for multiple platforms
+build-windows:
+	@echo "Building single-file binary for Windows..."
+	cd src/SecretsManager && dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ../../dist/windows
+
+build-linux:
+	@echo "Building single-file binary for Linux..."
+	cd src/SecretsManager && dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o ../../dist/linux
+
+build-macos:
+	@echo "Building single-file binary for macOS (Intel)..."
+	cd src/SecretsManager && dotnet publish -c Release -r osx-x64 --self-contained true -p:PublishSingleFile=true -o ../../dist/macos-intel
+
+build-macos-arm:
+	@echo "Building single-file binary for macOS (Apple Silicon)..."
+	cd src/SecretsManager && dotnet publish -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true -o ../../dist/macos-arm
+
+build-all: build-windows build-linux build-macos build-macos-arm
+	@echo "All platform binaries built successfully!"
+	@echo "Binaries are located in:"
+	@echo "  - Windows: dist/windows/SecretsManager.exe"
+	@echo "  - Linux: dist/linux/SecretsManager"
+	@echo "  - macOS Intel: dist/macos-intel/SecretsManager"
+	@echo "  - macOS ARM: dist/macos-arm/SecretsManager"
+
+clean-dist:
+	@echo "Cleaning distribution directory..."
+	rm -rf dist/
 
 full-setup: setup-infrastructure dotnet-build
 	@echo "Full setup complete"
