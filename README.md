@@ -59,20 +59,13 @@ env | grep -E "(DATABASE_URL|API_KEY|JWT_SECRET|REDIS_URL)"
 cat src/SecretsManager/.env
 ```
 
-## 🚀 Quick Start
+## 🚀 Quick Start to Validate this Project
 
 1. **Start the infrastructure**: `make setup-infrastructure`
 2. **Build and run the application**: `make test-app`
 3. **Check the generated `.env` file and environment variables**
 
-## 📋 Prerequisites
-
-- Docker and Docker Compose
-- .NET 7.0 SDK or later
-- Make utility
-- Git
-
-## 🏗️ Architecture Overview
+## 🏗️ Project Architecture Overview
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -105,15 +98,6 @@ cat src/SecretsManager/.env
 - `make dotnet-clean` - Clean .NET build artifacts
 - `make full-setup` - Complete setup (infrastructure + application build)
 
-### 📦 Cross-Platform Binary Building
-- `make build-windows` - Build single-file binary for Windows (x64)
-- `make build-linux` - Build single-file binary for Linux (x64)
-- `make build-macos` - Build single-file binary for macOS Intel (x64)
-- `make build-macos-arm` - Build single-file binary for macOS Apple Silicon (ARM64)
-- `make build-all` - Build binaries for all platforms
-- `make clean-dist` - Clean distribution directory
-- `./scripts/build-binaries.sh` - Alternative script to build all platforms
-
 ### Testing & Validation
 - `make test` - Run unit tests
 - `make dotnet-test` - Run unit tests (alternative)
@@ -122,64 +106,13 @@ cat src/SecretsManager/.env
 - `make localstack-status` - Check LocalStack service status
 - `make test-secrets` - Test direct secret retrieval
 
-### Terraform Operations
-- `make terraform-build` - Build Terraform Docker image
-- `make terraform-init` - Initialize Terraform
-- `make terraform-plan` - Plan Terraform changes
-- `make terraform-apply` - Apply Terraform configuration
-- `make terraform-destroy` - Destroy Terraform infrastructure
-
-### Cleanup
-- `make clean` - Basic cleanup (containers, build artifacts)
-- `make cleanup` - Comprehensive cleanup (everything + Docker pruning)
-
-## 📁 Project Structure
-
-```
-my-secrets-fetcher/
-├── .devcontainer/              # VS Code dev container configuration
-│   ├── devcontainer.json      # ✨ Now with AWS ARN support!
-│   ├── docker-compose.yml
-│   ├── Dockerfile
-│   ├── setup.sh
-│   └── README.md
-├── docker/                     # Docker configurations
-│   └── Dockerfile.terraform    # Terraform container
-├── scripts/                    # Utility scripts
-│   ├── health-check.sh        # Health diagnostics
-│   ├── cleanup.sh             # Environment cleanup
-│   └── build-binaries.sh      # ✨ NEW: Cross-platform binary builder
-├── src/SecretsManager/         # .NET application
-│   ├── Models/                # Data models
-│   │   ├── AppSecrets.cs
-│   │   ├── AwsConfig.cs
-│   │   ├── SecretsManagerConfig.cs
-│   │   └── DevContainerConfig.cs    # ✨ NEW: DevContainer models
-│   ├── Services/              # Business logic
-│   │   ├── ISecretsService.cs
-│   │   ├── AwsSecretsService.cs
-│   │   ├── IDevContainerService.cs  # ✨ NEW: DevContainer interface
-│   │   └── DevContainerService.cs   # ✨ NEW: DevContainer implementation
-│   ├── Tests/                 # ✨ NEW: Comprehensive test suite
-│   │   └── DevContainerServiceTests.cs
-│   ├── Program.cs             # Application entry point
-│   ├── appsettings.json       # Configuration
-│   ├── appsettings.Development.json
-│   └── SecretsManager.csproj  # Project file
-├── terraform/                  # Infrastructure as Code
-│   ├── main.tf               # Main Terraform configuration
-│   ├── variables.tf          # Variable definitions
-│   ├── outputs.tf            # Output definitions
-│   └── provider.tf           # Provider configuration
-├── docker-compose.yml         # LocalStack services
-├── Makefile                   # Build automation
-└── README.md                  # This file
-```
-
+# Example Usage
 ## ⚙️ Configuration
 
 ### DevContainer Secrets Configuration
 
+This project assumes your devcontainer will have access to AWS Secrets Manager ARNs.
+This can be achieved by your runtime already having authenticated to AWS via OIDC, or by authenticating to AWS from within the devcontainer.
 Configure AWS Secrets Manager ARNs directly in your `devcontainer.json`:
 
 ```json
@@ -256,141 +189,6 @@ variable "secrets" {
 }
 ```
 
-## 🔧 Development Workflow
-
-### 1. Initial Setup
-```bash
-# Clone the repository
-git clone <repository-url>
-cd my-secrets-fetcher
-
-# Start the complete environment
-make setup-infrastructure
-```
-
-### 2. Development Cycle
-```bash
-# Build and test the application
-make dotnet-build
-make dotnet-run
-
-# Run health checks
-make health-check
-
-# Test secret retrieval
-make test-secrets
-```
-
-### 3. Making Changes
-```bash
-# After code changes
-make dotnet-build
-make dotnet-run
-
-# After infrastructure changes
-make terraform-plan
-make terraform-apply
-```
-
-### 4. Cross-Platform Binary Deployment
-```bash
-# Build binaries for all platforms
-make build-all
-
-# Or build for specific platforms
-make build-windows    # Windows x64
-make build-linux      # Linux x64
-make build-macos      # macOS Intel
-make build-macos-arm  # macOS Apple Silicon
-
-# Alternative: Use the build script
-./scripts/build-binaries.sh
-
-# Binaries will be created in:
-# - dist/windows/SecretsManager.exe
-# - dist/linux/SecretsManager
-# - dist/macos-intel/SecretsManager
-# - dist/macos-arm/SecretsManager
-```
-
-### 5. Cleanup
-```bash
-# Quick cleanup
-make clean
-
-# Complete cleanup (frees significant disk space)
-make cleanup
-
-# Clean only distribution binaries
-make clean-dist
-```
-
-## 🐳 Container Development
-
-This project includes a complete VS Code dev container setup with automatic secrets management:
-
-```bash
-# Open in VS Code with dev containers extension
-code .
-
-# Or use the dev container directly
-docker-compose -f .devcontainer/docker-compose.yml up -d
-```
-
-The dev container includes:
-- .NET 8.0 SDK
-- AWS CLI
-- Terraform
-- Docker CLI
-- **✨ Automatic AWS Secrets Manager integration**
-- All necessary development tools
-
-## 🔍 Troubleshooting
-
-### Common Issues
-
-**LocalStack not responding:**
-```bash
-make health-check
-make restart
-```
-
-**Terraform state issues:**
-```bash
-make terraform-destroy
-make cleanup
-make setup-infrastructure
-```
-
-**Build failures:**
-```bash
-make dotnet-clean
-make dotnet-build
-```
-
-**DevContainer secrets not loading:**
-```bash
-# Check if devcontainer.json exists and has valid ARNs
-cat .devcontainer/devcontainer.json
-
-# Verify AWS Secrets Manager connectivity
-make test-secrets
-
-# Check application logs for DevContainer service errors
-make dotnet-run
-```
-
-**Permission errors during cleanup:**
-```bash
-sudo make cleanup
-# or
-sudo ./scripts/cleanup.sh
-```
-
-### Health Diagnostics
-
-The health check script provides comprehensive diagnostics:
-
 ```bash
 make health-check
 ```
@@ -403,27 +201,6 @@ This will check:
 - ✅ Network connectivity
 - ✅ DevContainer configuration validation
 
-### Logs and Debugging
-
-**View LocalStack logs:**
-```bash
-docker-compose logs localstack
-```
-
-**View application logs:**
-```bash
-make dotnet-run
-```
-
-**Debug Terraform:**
-```bash
-make terraform-plan
-```
-
-**Test DevContainer service:**
-```bash
-cd src/SecretsManager && dotnet test
-```
 
 ## 🚀 Production Considerations
 
@@ -455,26 +232,9 @@ cd src/SecretsManager && dotnet test
 - [.NET Configuration Documentation](https://docs.microsoft.com/en-us/dotnet/core/extensions/configuration)
 - [VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers)
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests: `make test-app` and `cd src/SecretsManager && dotnet test`
-5. Submit a pull request
-
 ## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🆘 Support
-
-For support and questions:
-- Check the troubleshooting section above
-- Run `make health-check` for diagnostics
-- Review the logs using the debugging commands
-- Test DevContainer functionality with `dotnet test`
-- Open an issue in the repository
 
 ---
 
