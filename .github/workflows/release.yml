@@ -6,6 +6,10 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
@@ -66,62 +70,24 @@ jobs:
           echo "tag=v$(date +'%Y.%m.%d')-$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
         fi
         
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
+    - name: Create Release and Upload Assets
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.tag.outputs.tag }}
-        release_name: Release ${{ steps.tag.outputs.tag }}
-        body: |
-          ## Changes
-          - Automated release from commit ${{ github.sha }}
-          
-          ## Downloads
-          - **Windows**: SecretsManager-windows-x64.zip
-          - **Linux**: SecretsManager-linux-x64.tar.gz  
-          - **macOS Intel**: SecretsManager-macos-intel-x64.tar.gz
-          - **macOS ARM**: SecretsManager-macos-arm64.tar.gz
-        draft: false
-        prerelease: false
+      run: |
+        TAG="${{ steps.tag.outputs.tag }}"
         
-    - name: Upload Windows Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./dist/SecretsManager-windows-x64.zip
-        asset_name: SecretsManager-windows-x64.zip
-        asset_content_type: application/zip
+        # Create release
+        gh release create "$TAG" \
+          --title "Release $TAG" \
+          --notes "## Changes
+        - Automated release from commit ${{ github.sha }}
         
-    - name: Upload Linux Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./dist/SecretsManager-linux-x64.tar.gz
-        asset_name: SecretsManager-linux-x64.tar.gz
-        asset_content_type: application/gzip
-        
-    - name: Upload macOS Intel Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./dist/SecretsManager-macos-intel-x64.tar.gz
-        asset_name: SecretsManager-macos-intel-x64.tar.gz
-        asset_content_type: application/gzip
-        
-    - name: Upload macOS ARM Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./dist/SecretsManager-macos-arm64.tar.gz
-        asset_name: SecretsManager-macos-arm64.tar.gz
-        asset_content_type: application/gzip
+        ## Downloads
+        - **Windows**: SecretsManager-windows-x64.zip
+        - **Linux**: SecretsManager-linux-x64.tar.gz  
+        - **macOS Intel**: SecretsManager-macos-intel-x64.tar.gz
+        - **macOS ARM**: SecretsManager-macos-arm64.tar.gz" \
+          ./dist/SecretsManager-windows-x64.zip \
+          ./dist/SecretsManager-linux-x64.tar.gz \
+          ./dist/SecretsManager-macos-intel-x64.tar.gz \
+          ./dist/SecretsManager-macos-arm64.tar.gz
