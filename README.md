@@ -38,6 +38,63 @@ The system automatically:
 3. Sets environment variables with the retrieved values
 4. Your application can access secrets via standard environment variables
 
+### 📊 DevContainer Secrets Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant DC as DevContainer
+    participant SM as SecretsManager App
+    participant DCS as DevContainerService
+    participant AWS as AWS Secrets Manager
+    participant Env as Environment Variables
+
+    Note over Dev,Env: DevContainer Secrets Management Flow
+
+    Dev->>DC: Start DevContainer
+    activate DC
+    
+    DC->>SM: Execute postcreate command
+    activate SM
+    Note over SM: ./SecretsManager runs
+    
+    SM->>DCS: Load DevContainer Config
+    activate DCS
+    DCS->>DCS: Read .devcontainer/devcontainer.json
+    DCS->>DCS: Parse containerEnv, build.args, remoteEnv
+    DCS->>DCS: Extract AWS Secret ARNs using regex
+    Note over DCS: Pattern: ${arn:aws:secretsmanager:...}
+    
+    loop For each AWS Secret ARN found
+        DCS->>DCS: Extract Secret ID from ARN
+        DCS->>AWS: Fetch secret value by ID
+        activate AWS
+        AWS-->>DCS: Return secret value
+        deactivate AWS
+        DCS->>Env: Set environment variable
+        Note over Env: Environment.SetEnvironmentVariable()
+    end
+    
+    DCS-->>SM: DevContainer secrets processed
+    deactivate DCS
+    
+    SM->>AWS: Fetch additional app secrets
+    activate AWS
+    AWS-->>SM: Return app secrets
+    deactivate AWS
+    
+    SM->>Env: Create .env file (optional)
+    SM->>Env: Set additional environment variables
+    
+    SM-->>DC: Secrets management complete
+    deactivate SM
+    
+    DC-->>Dev: DevContainer ready with secrets
+    deactivate DC
+    
+    Note over Dev,Env: Application can now access secrets via environment variables
+```
+
 ### 🧪 Comprehensive Testing
 
 - **18 Unit Tests** covering all functionality
