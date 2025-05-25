@@ -2,6 +2,47 @@
 
 This application demonstrates how to integrate .NET Core with AWS Secrets Manager using LocalStack for local development. It provides a complete workflow for managing secrets in a containerized development environment with Infrastructure as Code (IaC) using Terraform.
 
+## 🆕 NEW: DevContainer Secrets Management
+
+**Automatically fetch AWS secrets in your DevContainer environment!**
+
+This project now includes advanced DevContainer integration that automatically detects AWS Secrets Manager ARNs in your DevContainer configuration and fetches the actual secret values at container startup.
+
+### ✨ Key Features
+
+- **🔍 Automatic ARN Detection**: Scans `devcontainer.json` for AWS Secrets Manager ARNs
+- **🔄 Real-time Secret Fetching**: Retrieves actual values from AWS Secrets Manager
+- **🌍 Environment Variable Injection**: Automatically sets environment variables with secret values
+- **🛡️ Secure by Design**: Secrets are never stored in configuration files
+- **📍 Multi-Location Support**: Works with `containerEnv`, `build.args`, and `remoteEnv`
+
+### 🚀 How It Works
+
+Simply add AWS Secrets Manager ARNs to your DevContainer configuration:
+
+```json
+{
+  "containerEnv": {
+    "GIT_TOKEN": "${arn:aws:secretsmanager:us-east-1:000000000000:secret:my-secret-abc123}",
+    "API_KEY": "${arn:aws:secretsmanager:us-east-1:000000000000:secret:api-keys-def456}",
+    "REGULAR_VAR": "not-a-secret"
+  }
+}
+```
+
+The system automatically:
+1. Detects ARN patterns in your DevContainer config
+2. Fetches the actual secret values from AWS Secrets Manager
+3. Sets environment variables with the retrieved values
+4. Your application can access secrets via standard environment variables
+
+### 🧪 Comprehensive Testing
+
+- **18 Unit Tests** covering all functionality
+- **ARN Validation** and extraction testing
+- **Multi-configuration** support testing
+- **Error Handling** and edge case coverage
+
 # Use Case
 
 This project fetches secrets from AWS Secrets Manager and applies them to the local development environment as environment variables or in an `.env` file. This allows developers to easily access sensitive information without exposing it in their source code.
@@ -43,8 +84,8 @@ cat src/SecretsManager/.env
 │ └─────────────┘ │    │ └─────────────┘ │    │ └─────────────┘ │
 │                 │    │                 │    │                 │
 │ ┌─────────────┐ │    │ ┌─────────────┐ │    │                 │
-│ │ Environment │ │    │ │ IAM/STS     │ │    │                 │
-│ │ Manager     │ │    │ │ Services    │ │    │                 │
+│ │ DevContainer│ │    │ │ IAM/STS     │ │    │                 │
+│ │ Service     │ │    │ │ Services    │ │    │                 │
 │ └─────────────┘ │    │ └─────────────┘ │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
@@ -86,7 +127,7 @@ cat src/SecretsManager/.env
 ```
 my-secrets-fetcher/
 ├── .devcontainer/              # VS Code dev container configuration
-│   ├── devcontainer.json
+│   ├── devcontainer.json      # ✨ Now with AWS ARN support!
 │   ├── docker-compose.yml
 │   ├── Dockerfile
 │   ├── setup.sh
@@ -100,10 +141,15 @@ my-secrets-fetcher/
 │   ├── Models/                # Data models
 │   │   ├── AppSecrets.cs
 │   │   ├── AwsConfig.cs
-│   │   └── SecretsManagerConfig.cs
+│   │   ├── SecretsManagerConfig.cs
+│   │   └── DevContainerConfig.cs    # ✨ NEW: DevContainer models
 │   ├── Services/              # Business logic
 │   │   ├── ISecretsService.cs
-│   │   └── AwsSecretsService.cs
+│   │   ├── AwsSecretsService.cs
+│   │   ├── IDevContainerService.cs  # ✨ NEW: DevContainer interface
+│   │   └── DevContainerService.cs   # ✨ NEW: DevContainer implementation
+│   ├── Tests/                 # ✨ NEW: Comprehensive test suite
+│   │   └── DevContainerServiceTests.cs
 │   ├── Program.cs             # Application entry point
 │   ├── appsettings.json       # Configuration
 │   ├── appsettings.Development.json
@@ -119,6 +165,34 @@ my-secrets-fetcher/
 ```
 
 ## ⚙️ Configuration
+
+### DevContainer Secrets Configuration
+
+Configure AWS Secrets Manager ARNs directly in your `devcontainer.json`:
+
+```json
+{
+  "name": "My Development Environment",
+  "containerEnv": {
+    "DATABASE_PASSWORD": "${arn:aws:secretsmanager:us-east-1:123456789012:secret:db-password-abc123}",
+    "API_TOKEN": "${arn:aws:secretsmanager:us-east-1:123456789012:secret:api-token-def456}",
+    "REGULAR_CONFIG": "not-a-secret"
+  },
+  "build": {
+    "args": {
+      "BUILD_SECRET": "${arn:aws:secretsmanager:us-east-1:123456789012:secret:build-secret-ghi789}"
+    }
+  },
+  "remoteEnv": {
+    "REMOTE_KEY": "${arn:aws:secretsmanager:us-east-1:123456789012:secret:remote-key-jkl012}"
+  }
+}
+```
+
+**Supported ARN Locations:**
+- `containerEnv` - Environment variables for the container
+- `build.args` - Build-time arguments
+- `remoteEnv` - Remote environment variables
 
 ### Application Configuration
 
@@ -217,7 +291,7 @@ make cleanup
 
 ## 🐳 Container Development
 
-This project includes a complete VS Code dev container setup:
+This project includes a complete VS Code dev container setup with automatic secrets management:
 
 ```bash
 # Open in VS Code with dev containers extension
@@ -232,6 +306,7 @@ The dev container includes:
 - AWS CLI
 - Terraform
 - Docker CLI
+- **✨ Automatic AWS Secrets Manager integration**
 - All necessary development tools
 
 ## 🔍 Troubleshooting
@@ -257,6 +332,18 @@ make dotnet-clean
 make dotnet-build
 ```
 
+**DevContainer secrets not loading:**
+```bash
+# Check if devcontainer.json exists and has valid ARNs
+cat .devcontainer/devcontainer.json
+
+# Verify AWS Secrets Manager connectivity
+make test-secrets
+
+# Check application logs for DevContainer service errors
+make dotnet-run
+```
+
 **Permission errors during cleanup:**
 ```bash
 sudo make cleanup
@@ -278,6 +365,7 @@ This will check:
 - ✅ Secret retrieval functionality
 - ✅ Docker container health
 - ✅ Network connectivity
+- ✅ DevContainer configuration validation
 
 ### Logs and Debugging
 
@@ -296,6 +384,11 @@ make dotnet-run
 make terraform-plan
 ```
 
+**Test DevContainer service:**
+```bash
+cd src/SecretsManager && dotnet test
+```
+
 ## 🚀 Production Considerations
 
 ### Security
@@ -303,6 +396,7 @@ make terraform-plan
 - Use proper AWS IAM roles and policies
 - Implement secret rotation
 - Enable encryption at rest and in transit
+- **✨ DevContainer secrets are fetched at runtime, never stored in config**
 
 ### Scalability
 - Consider using AWS ECS/EKS for container orchestration
@@ -315,6 +409,7 @@ make terraform-plan
 - Implement structured logging
 - Use AWS CloudWatch for monitoring
 - Set up alerting for secret retrieval failures
+- **✨ Monitor DevContainer secret fetch operations**
 
 ## 📚 Additional Resources
 
@@ -322,13 +417,14 @@ make terraform-plan
 - [LocalStack Documentation](https://docs.localstack.cloud/)
 - [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 - [.NET Configuration Documentation](https://docs.microsoft.com/en-us/dotnet/core/extensions/configuration)
+- [VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers)
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Run tests: `make test-app`
+4. Run tests: `make test-app` and `cd src/SecretsManager && dotnet test`
 5. Submit a pull request
 
 ## 📄 License
@@ -341,6 +437,7 @@ For support and questions:
 - Check the troubleshooting section above
 - Run `make health-check` for diagnostics
 - Review the logs using the debugging commands
+- Test DevContainer functionality with `dotnet test`
 - Open an issue in the repository
 
 ---

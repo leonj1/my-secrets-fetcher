@@ -19,6 +19,15 @@ namespace SecretsManager
                 var logger = host.Services.GetRequiredService<ILogger<Program>>();
                 logger.LogInformation("Starting Secrets Manager application");
 
+                // Process DevContainer secrets first
+                var devContainerService = host.Services.GetRequiredService<IDevContainerService>();
+                var devContainerConfig = await devContainerService.LoadDevContainerConfigAsync();
+                if (devContainerConfig != null)
+                {
+                    logger.LogInformation("Processing DevContainer secrets...");
+                    await devContainerService.ProcessDevContainerSecretsAsync(devContainerConfig);
+                }
+
                 var secretsService = host.Services.GetRequiredService<ISecretsService>();
                 var secrets = await secretsService.GetSecretsAsync();
 
@@ -30,6 +39,19 @@ namespace SecretsManager
                 Console.WriteLine($"API Key: {MaskSecret(secrets.ApiKey)}");
                 Console.WriteLine($"JWT Secret: {MaskSecret(secrets.JwtSecret)}");
                 Console.WriteLine($"Redis URL: {secrets.RedisUrl}");
+
+                // Display any environment variables that were set from DevContainer secrets
+                Console.WriteLine("\nEnvironment Variables from DevContainer:");
+                var envVars = Environment.GetEnvironmentVariables();
+                foreach (var key in envVars.Keys)
+                {
+                    var keyStr = key.ToString();
+                    if (keyStr != null && (keyStr.Contains("TOKEN") || keyStr.Contains("SECRET") || keyStr.Contains("KEY")))
+                    {
+                        var value = envVars[key]?.ToString() ?? "";
+                        Console.WriteLine($"{keyStr}: {MaskSecret(value)}");
+                    }
+                }
 
                 logger.LogInformation("Application completed successfully");
             }
@@ -80,6 +102,7 @@ namespace SecretsManager
 
                     // Register application services
                     services.AddScoped<ISecretsService, AwsSecretsService>();
+                    services.AddScoped<IDevContainerService, DevContainerService>();
                 })
                 .ConfigureLogging(logging =>
                 {

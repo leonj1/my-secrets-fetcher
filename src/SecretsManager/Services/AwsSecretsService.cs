@@ -85,5 +85,54 @@ namespace SecretsManager.Services
                 throw new InvalidOperationException($"Unexpected error retrieving secret '{_config.SecretName}'", ex);
             }
         }
+
+        public async Task<string> GetSecretValueAsync(string secretId)
+        {
+            try
+            {
+                _logger.LogInformation("Retrieving secret value for: {SecretId}", secretId);
+
+                var request = new GetSecretValueRequest
+                {
+                    SecretId = secretId
+                };
+
+                var response = await _secretsManager.GetSecretValueAsync(request);
+                
+                _logger.LogInformation("Successfully retrieved secret value from AWS Secrets Manager");
+
+                return response.SecretString ?? string.Empty;
+            }
+            catch (ResourceNotFoundException ex)
+            {
+                _logger.LogError(ex, "Secret not found: {SecretId}", secretId);
+                throw new InvalidOperationException($"Secret '{secretId}' not found", ex);
+            }
+            catch (InvalidRequestException ex)
+            {
+                _logger.LogError(ex, "Invalid request for secret: {SecretId}", secretId);
+                throw new InvalidOperationException($"Invalid request for secret '{secretId}'", ex);
+            }
+            catch (InvalidParameterException ex)
+            {
+                _logger.LogError(ex, "Invalid parameter for secret: {SecretId}", secretId);
+                throw new InvalidOperationException($"Invalid parameter for secret '{secretId}'", ex);
+            }
+            catch (DecryptionFailureException ex)
+            {
+                _logger.LogError(ex, "Decryption failed for secret: {SecretId}", secretId);
+                throw new InvalidOperationException($"Decryption failed for secret '{secretId}'", ex);
+            }
+            catch (InternalServiceErrorException ex)
+            {
+                _logger.LogError(ex, "Internal service error retrieving secret: {SecretId}", secretId);
+                throw new InvalidOperationException($"Internal service error retrieving secret '{secretId}'", ex);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error retrieving secret: {SecretId}", secretId);
+                throw new InvalidOperationException($"Unexpected error retrieving secret '{secretId}'", ex);
+            }
+        }
     }
 }
