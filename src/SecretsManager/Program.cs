@@ -17,27 +17,25 @@ namespace SecretsManager
         static async Task Main(string[] args)
         {
             // Parse command line arguments
-            var parser = new Parser(with => with.HelpWriter = null);
-            var parserResult = parser.ParseArguments<CommandLineOptions>(args);
-
-            await parserResult.WithParsedAsync(async options =>
+            var result = Parser.Default.ParseArguments<CommandLineOptions>(args);
+            
+            // If parsing failed (help, version, or error), Parser.Default handles it automatically
+            if (result.Tag == ParserResultType.NotParsed)
             {
-                // Handle help
-                if (options.Help)
-                {
-                    DisplayHelp(parserResult);
-                    return;
-                }
+                return;
+            }
+            
+            var options = result.Value;
+            
+            // Handle version explicitly if needed
+            if (options.Version)
+            {
+                DisplayVersion();
+                return;
+            }
 
-                // Handle version
-                if (options.Version)
-                {
-                    DisplayVersion();
-                    return;
-                }
-
-                // Build and run the application with parsed options
-                var host = CreateHostBuilder(args, options).Build();
+            // Build and run the application with parsed options
+            var host = CreateHostBuilder(args, options).Build();
             
             try
             {
@@ -189,22 +187,6 @@ namespace SecretsManager
                 Console.WriteLine($"Error: {ex.Message}");
                 Environment.Exit(1);
             }
-            });
-
-            // Handle parsing errors
-            await parserResult.WithNotParsedAsync(async errors =>
-            {
-                if (errors.IsHelp() || errors.IsVersion())
-                {
-                    DisplayHelp(parserResult);
-                }
-                else
-                {
-                    Console.WriteLine("Error parsing command line arguments.");
-                    DisplayHelp(parserResult);
-                    Environment.Exit(1);
-                }
-            });
         }
 
         static IHostBuilder CreateHostBuilder(string[] args, CommandLineOptions options) =>
