@@ -9,6 +9,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     
+    permissions:
+      contents: read
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -25,16 +28,38 @@ jobs:
       run: dotnet build --no-restore --configuration Release
       
     - name: Run tests
-      run: dotnet test --no-build --configuration Release --verbosity normal --logger trx --results-directory TestResults
+      run: |
+        set +e  # Don't exit immediately on test failure
+        dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx" --results-directory TestResults --logger "console;verbosity=detailed"
+        TEST_EXIT_CODE=$?
+        set -e  # Re-enable exit on error
+        
+        echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ $TEST_EXIT_CODE -eq 0 ]; then
+          echo "✅ All tests passed!" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Some tests failed!" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        exit $TEST_EXIT_CODE
       
-    - name: Publish test results
-      uses: dorny/test-reporter@v1
+    - name: Generate test report
       if: always()
-      with:
-        name: .NET Tests
-        path: TestResults/*.trx
-        reporter: dotnet-trx
-        fail-on-error: true
+      run: |
+        echo "## Detailed Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Test results have been generated in TRX format and are available as artifacts." >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Count test results if the test run completed
+        if [ -f "TestResults/test-results.trx" ]; then
+          echo "### Test Execution Details:" >> $GITHUB_STEP_SUMMARY
+          echo "- Total Tests: $(grep -o '<UnitTestResult' TestResults/test-results.trx | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- Passed: $(grep -o 'outcome="Passed"' TestResults/test-results.trx | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- Failed: $(grep -o 'outcome="Failed"' TestResults/test-results.trx | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- Skipped: $(grep -o 'outcome="NotExecuted"' TestResults/test-results.trx | wc -l)" >> $GITHUB_STEP_SUMMARY
+        fi
         
     - name: Upload test results
       uses: actions/upload-artifact@v4
@@ -42,3 +67,4 @@ jobs:
       with:
         name: test-results
         path: TestResults/
+        retention-days: 7
