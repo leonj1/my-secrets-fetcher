@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SecretsManager.Models;
 using SecretsManager.Services;
+using System.Linq;
 using System.Reflection;
 
 namespace SecretsManager
@@ -16,16 +17,40 @@ namespace SecretsManager
     {
         static async Task Main(string[] args)
         {
-            // Parse command line arguments
-            var result = Parser.Default.ParseArguments<CommandLineOptions>(args);
+            // Parse command line arguments with custom help writer
+            var parser = new Parser(with => with.HelpWriter = null);
+            var result = parser.ParseArguments<CommandLineOptions>(args);
             
-            // If parsing failed (help, version, or error), Parser.Default handles it automatically
+            // Handle parsing errors and help
             if (result.Tag == ParserResultType.NotParsed)
             {
+                var errors = ((NotParsed<CommandLineOptions>)result).Errors;
+                
+                // Check if help was requested
+                if (errors.Any(e => e is HelpRequestedError))
+                {
+                    DisplayHelp(result);
+                }
+                else if (errors.Any())
+                {
+                    // Display other errors
+                    Console.Error.WriteLine("Error parsing command line arguments:");
+                    foreach (var error in errors)
+                    {
+                        Console.Error.WriteLine($"  {error}");
+                    }
+                }
                 return;
             }
             
             var options = result.Value;
+            
+            // Handle help explicitly if needed
+            if (options.Help)
+            {
+                DisplayHelp(result);
+                return;
+            }
             
             // Handle version explicitly if needed
             if (options.Version)
