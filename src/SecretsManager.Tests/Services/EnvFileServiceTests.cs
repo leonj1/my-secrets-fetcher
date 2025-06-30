@@ -6,7 +6,7 @@ using Xunit;
 
 namespace SecretsManager.Tests.Services
 {
-    public class EnvFileServiceTests
+    public class EnvFileServiceTests : IDisposable
     {
         private readonly Mock<ISecretsService> _mockSecretsService;
         private readonly Mock<ILogger<EnvFileService>> _mockLogger;
