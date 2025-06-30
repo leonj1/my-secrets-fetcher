@@ -110,6 +110,7 @@ namespace SecretsManager
                 .ConfigureAppConfiguration((context, config) =>
                 {
                     config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+                    config.AddEnvironmentVariables();
                 })
                 .ConfigureServices((context, services) =>
                 {
@@ -119,8 +120,27 @@ namespace SecretsManager
                     var awsConfig = configuration.GetSection("AWS").Get<AwsConfig>();
                     if (awsConfig == null)
                     {
-                        throw new InvalidOperationException("AWS configuration is missing");
+                        awsConfig = new AwsConfig();
                     }
+
+                    // Support standard AWS environment variables as fallback
+                    if (string.IsNullOrEmpty(awsConfig.AccessKey))
+                    {
+                        awsConfig.AccessKey = Environment.GetEnvironmentVariable("AWS_ACCESS_KEY_ID");
+                    }
+                    if (string.IsNullOrEmpty(awsConfig.SecretKey))
+                    {
+                        awsConfig.SecretKey = Environment.GetEnvironmentVariable("AWS_SECRET_ACCESS_KEY");
+                    }
+                    if (string.IsNullOrEmpty(awsConfig.Region))
+                    {
+                        awsConfig.Region = Environment.GetEnvironmentVariable("AWS_DEFAULT_REGION") 
+                                        ?? Environment.GetEnvironmentVariable("AWS_REGION")
+                                        ?? "us-east-1";
+                    }
+
+                    // Validate the configuration
+                    awsConfig.Validate();
 
                     // Configure Secrets Manager settings
                     services.Configure<SecretsManagerConfig>(
@@ -129,16 +149,28 @@ namespace SecretsManager
                     // Register AWS Secrets Manager client
                     services.AddSingleton<IAmazonSecretsManager>(provider =>
                     {
+                        var logger = provider.GetRequiredService<ILogger<Program>>();
                         var config = new AmazonSecretsManagerConfig
                         {
                             RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(awsConfig.Region),
                             ServiceURL = awsConfig.ServiceURL
                         };
 
-                        return new AmazonSecretsManagerClient(
-                            awsConfig.AccessKey,
-                            awsConfig.SecretKey,
-                            config);
+                        // If explicit credentials are provided, use them
+                        if (awsConfig.HasExplicitCredentials())
+                        {
+                            logger.LogInformation("Using explicit AWS credentials");
+                            return new AmazonSecretsManagerClient(
+                                awsConfig.AccessKey,
+                                awsConfig.SecretKey,
+                                config);
+                        }
+                        else
+                        {
+                            // Use AWS SDK credential chain (IAM roles, etc.)
+                            logger.LogInformation("Using AWS SDK credential chain (IAM roles, environment variables, etc.)");
+                            return new AmazonSecretsManagerClient(config);
+                        }
                     });
 
                     // Register application services

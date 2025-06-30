@@ -74,7 +74,7 @@ The application follows a service-oriented architecture with interface-based des
 - **IDevContainerService** - Manages DevContainer configuration parsing and ARN extraction
 - **IEnvFileService** - Handles .env.example parsing and .env file creation
 - **SecretsRepository** - Data access layer for secrets
-- **Configuration classes** - Strongly typed configuration models
+- **Configuration classes** - Strongly typed configuration models (now with nullable credential support)
 
 ### DevContainer Integration Pattern
 The application automatically detects AWS Secrets Manager ARNs in devcontainer.json:
@@ -100,22 +100,44 @@ The application also supports ARN detection in .env.example files:
    - Apply as environment variables and/or write to .env file based on OutputMode
 
 2. **Configuration Hierarchy**:
+   - Environment variable overrides (highest priority)
+     - .NET-style: `AWS__Region`, `AWS__AccessKey`, `AWS__SecretKey`, `SecretsManager__SecretName`
+     - AWS SDK standard: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`
    - appsettings.json base configuration
-   - Environment variable overrides (AWS__, SECRETSMANAGER__)
-   - Command-line arguments (future enhancement)
+   - AWS SDK credential chain (IAM roles, profiles) when no explicit credentials provided
 
 3. **Output Modes** (configurable via OutputMode setting):
    - EnvironmentVariables: Sets process environment variables
    - EnvFile: Writes .env file to specified path
    - Both: Applies both methods (default)
 
+### AWS Authentication Methods
+The application supports multiple authentication methods:
+
+1. **Environment Variables** (recommended for containers/CI)
+   - Standard AWS: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+   - .NET configuration: `AWS__AccessKey`, `AWS__SecretKey`
+   - Automatic region detection from `AWS_DEFAULT_REGION` or `AWS_REGION`
+
+2. **Configuration File** (`appsettings.json`)
+   - Used when environment variables are not present
+   - Good for local development with LocalStack
+
+3. **IAM Roles** (recommended for production)
+   - Automatically used when no explicit credentials provided
+   - Supports EC2 instance profiles, ECS task roles, Lambda execution roles
+   - Most secure option - no credentials to manage
+
 ### Testing Considerations
-- 18 unit tests covering DevContainer functionality
-- Additional unit tests for EnvFileService
+- 34 unit tests including:
+  - 18 tests for DevContainer functionality
+  - 10 tests for AWS configuration and validation
+  - 6 tests for EnvFileService
 - Integration testing via LocalStack
 - ARN validation and extraction tests
 - .env.example parsing and .env file creation tests
 - Error handling for malformed configurations
+- Credential precedence testing
 
 ## LocalStack Configuration
 
