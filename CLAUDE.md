@@ -72,6 +72,7 @@ The application follows a service-oriented architecture with interface-based des
 
 - **ISecretsService** - Handles AWS Secrets Manager operations
 - **IDevContainerService** - Manages DevContainer configuration parsing and ARN extraction
+- **IEnvFileService** - Handles .env.example parsing and .env file creation
 - **SecretsRepository** - Data access layer for secrets
 - **Configuration classes** - Strongly typed configuration models
 
@@ -81,28 +82,39 @@ The application automatically detects AWS Secrets Manager ARNs in devcontainer.j
 - Supports containerEnv, build.args, and remoteEnv sections
 - Fetches secrets at runtime and sets environment variables
 
+### .env.example Integration Pattern
+The application also supports ARN detection in .env.example files:
+- Same ARN pattern as DevContainer: `${arn:aws:secretsmanager:region:account:secret:name}`
+- Parses standard .env format with comments and quoted values
+- Creates/updates .env file with fetched secret values
+- Preserves non-ARN values from .env.example
+
 ### Key Implementation Details
 
 1. **Secrets Fetching Flow**:
    - Parse devcontainer.json for ARNs (if present)
+   - Parse .env.example for ARNs (if present)
+   - Both files are processed independently
    - Extract secret IDs from ARNs
    - Fetch secrets from AWS Secrets Manager
-   - Apply as environment variables and/or write to .env file
+   - Apply as environment variables and/or write to .env file based on OutputMode
 
 2. **Configuration Hierarchy**:
    - appsettings.json base configuration
    - Environment variable overrides (AWS__, SECRETSMANAGER__)
    - Command-line arguments (future enhancement)
 
-3. **Output Modes**:
+3. **Output Modes** (configurable via OutputMode setting):
    - EnvironmentVariables: Sets process environment variables
    - EnvFile: Writes .env file to specified path
    - Both: Applies both methods (default)
 
 ### Testing Considerations
 - 18 unit tests covering DevContainer functionality
+- Additional unit tests for EnvFileService
 - Integration testing via LocalStack
 - ARN validation and extraction tests
+- .env.example parsing and .env file creation tests
 - Error handling for malformed configurations
 
 ## LocalStack Configuration
