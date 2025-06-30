@@ -144,7 +144,7 @@ EMPTY_VALUE=
         }
 
         [Fact]
-        public async Task IsAwsSecretArn_ValidatesArnsCorrectly()
+        public void IsAwsSecretArn_ValidatesArnsCorrectly()
         {
             // Arrange & Act & Assert
             var service = new EnvFileService(_mockSecretsService.Object, _mockLogger.Object);
@@ -161,11 +161,28 @@ EMPTY_VALUE=
         }
 
         // Helper method to test private IsAwsSecretArn via reflection
-        private bool IsAwsSecretArn(string value)
+        private bool IsAwsSecretArn(string? value)
         {
+            if (_envFileService == null)
+            {
+                throw new InvalidOperationException("EnvFileService instance is null");
+            }
+
             var method = typeof(EnvFileService).GetMethod("IsAwsSecretArn", 
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            return (bool)method.Invoke(_envFileService, new object[] { value });
+            
+            if (method == null)
+            {
+                throw new InvalidOperationException("IsAwsSecretArn method not found");
+            }
+
+            var result = method.Invoke(_envFileService, new object?[] { value });
+            if (result == null)
+            {
+                throw new InvalidOperationException("Method invocation returned null");
+            }
+
+            return (bool)result;
         }
 
         public void Dispose()
