@@ -1,4 +1,4 @@
-.PHONY: start stop restart status terraform-build terraform-init terraform-plan terraform-apply terraform-destroy setup-infrastructure build-app run-app test-app clean localstack-status dotnet-build dotnet-run dotnet-clean dotnet-test test build-windows build-linux build-macos build-macos-arm build-all clean-dist full-setup health-check cleanup
+.PHONY: start stop restart status terraform-build terraform-init terraform-plan terraform-apply terraform-destroy setup-infrastructure build-app run-app test-app clean localstack-status dotnet-build dotnet-run dotnet-clean dotnet-test test docker-test build-windows build-linux build-macos build-macos-arm build-all clean-dist full-setup health-check cleanup
 
 start:
 	docker-compose up -d
@@ -58,6 +58,12 @@ dotnet-test:
 	cd src/SecretsManager.Tests && dotnet test
 
 test: dotnet-test
+
+docker-test:
+	@echo "Building test Docker image..."
+	docker build -f docker/Dockerfile.test -t secrets-manager-test .
+	@echo "Running tests in Docker container..."
+	docker run --rm secrets-manager-test
 
 # Single-file binary builds for multiple platforms
 build-windows:

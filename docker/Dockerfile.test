@@ -1,0 +1,19 @@
+FROM mcr.microsoft.com/dotnet/sdk:7.0
+WORKDIR /app
+
+# Copy solution and project files first for better caching
+COPY *.sln ./
+COPY src/SecretsManager/*.csproj ./src/SecretsManager/
+COPY src/SecretsManager.Tests/*.csproj ./src/SecretsManager.Tests/
+
+# Restore dependencies
+RUN dotnet restore
+
+# Copy the rest of the source code
+COPY . .
+
+# Build the solution
+RUN dotnet build --no-restore
+
+# Run tests
+CMD ["dotnet", "test", "--no-build", "--verbosity:normal"]

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SecretsManager.Models;
 using SecretsManager.Services;
 
@@ -17,9 +18,12 @@ namespace SecretsManager
             try
             {
                 var logger = host.Services.GetRequiredService<ILogger<Program>>();
+                var config = host.Services.GetRequiredService<IOptions<SecretsManagerConfig>>().Value;
                 logger.LogInformation("Starting Secrets Manager application");
 
-                // Process DevContainer secrets first
+                var allSecrets = new Dictionary<string, string>();
+
+                // Process DevContainer secrets (if exists)
                 var devContainerService = host.Services.GetRequiredService<IDevContainerService>();
                 var devContainerConfig = await devContainerService.LoadDevContainerConfigAsync();
                 if (devContainerConfig != null)
@@ -28,6 +32,37 @@ namespace SecretsManager
                     await devContainerService.ProcessDevContainerSecretsAsync(devContainerConfig);
                 }
 
+                // Process .env.example secrets (if exists) - INDEPENDENT OF DEVCONTAINER
+                var envFileService = host.Services.GetRequiredService<IEnvFileService>();
+                var envExampleVars = await envFileService.LoadEnvExampleFileAsync(config.EnvExamplePath);
+                if (envExampleVars != null && envExampleVars.Any())
+                {
+                    logger.LogInformation("Processing .env.example secrets...");
+                    var processedSecrets = await envFileService.ProcessEnvFileSecretsAsync(envExampleVars);
+                    
+                    // Merge with collected secrets
+                    foreach (var secret in processedSecrets)
+                    {
+                        allSecrets[secret.Key] = secret.Value;
+                        
+                        // Also set as environment variables if configured
+                        if (config.OutputMode == OutputMode.EnvironmentVariables || 
+                            config.OutputMode == OutputMode.Both)
+                        {
+                            Environment.SetEnvironmentVariable(secret.Key, secret.Value);
+                            logger.LogInformation("Set environment variable {Key} from .env.example", secret.Key);
+                        }
+                    }
+                }
+
+                // Write .env file if needed (based on OutputMode)
+                if ((config.OutputMode == OutputMode.EnvFile || config.OutputMode == OutputMode.Both) && 
+                    allSecrets.Any())
+                {
+                    await envFileService.WriteEnvFileAsync(allSecrets, config.EnvFilePath);
+                }
+
+                // Continue with existing app secrets processing
                 var secretsService = host.Services.GetRequiredService<ISecretsService>();
                 var secrets = await secretsService.GetSecretsAsync();
 
@@ -40,17 +75,23 @@ namespace SecretsManager
                 Console.WriteLine($"JWT Secret: {MaskSecret(secrets.JwtSecret)}");
                 Console.WriteLine($"Redis URL: {secrets.RedisUrl}");
 
-                // Display any environment variables that were set from DevContainer secrets
-                Console.WriteLine("\nEnvironment Variables from DevContainer:");
+                // Display any environment variables that were set
+                Console.WriteLine("\nEnvironment Variables Set:");
                 var envVars = Environment.GetEnvironmentVariables();
                 foreach (var key in envVars.Keys)
                 {
                     var keyStr = key.ToString();
-                    if (keyStr != null && (keyStr.Contains("TOKEN") || keyStr.Contains("SECRET") || keyStr.Contains("KEY")))
+                    if (keyStr != null && (keyStr.Contains("TOKEN") || keyStr.Contains("SECRET") || keyStr.Contains("KEY") || allSecrets.ContainsKey(keyStr)))
                     {
                         var value = envVars[key]?.ToString() ?? "";
                         Console.WriteLine($"{keyStr}: {MaskSecret(value)}");
                     }
+                }
+
+                // Display .env file status
+                if (config.OutputMode == OutputMode.EnvFile || config.OutputMode == OutputMode.Both)
+                {
+                    Console.WriteLine($"\n.env file written to: {config.EnvFilePath}");
                 }
 
                 logger.LogInformation("Application completed successfully");
@@ -103,6 +144,7 @@ namespace SecretsManager
                     // Register application services
                     services.AddScoped<ISecretsService, AwsSecretsService>();
                     services.AddScoped<IDevContainerService, DevContainerService>();
+                    services.AddScoped<IEnvFileService, EnvFileService>();
                 })
                 .ConfigureLogging(logging =>
                 {
