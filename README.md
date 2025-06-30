@@ -242,6 +242,8 @@ if __name__ == "__main__":
 ```
 
 #### 2. Docker Container Pattern
+
+**Using Environment Variables:**
 ```dockerfile
 # Dockerfile for Python app
 FROM python:3.11-slim
@@ -262,6 +264,40 @@ RUN echo '#!/bin/bash\n/usr/local/bin/SecretsManager && python main.py' > /start
 RUN chmod +x /start.sh
 
 CMD ["/start.sh"]
+```
+
+**Docker Compose with Environment Variables:**
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  app:
+    build: .
+    environment:
+      # AWS credentials via environment variables
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: us-east-1
+      # Or .NET-style variables
+      AWS__Region: us-east-1
+      AWS__ServiceURL: http://localstack:4566
+      SecretsManager__SecretName: my-app-secrets
+    networks:
+      - app-network
+
+  localstack:
+    image: localstack/localstack
+    environment:
+      - SERVICES=secretsmanager,sts,iam
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    ports:
+      - "4566:4566"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
 ```
 
 #### 3. CI/CD Pipeline Pattern
@@ -393,26 +429,68 @@ Configure AWS Secrets Manager ARNs directly in your `devcontainer.json`:
 
 ### Application Configuration
 
-The application can be configured through `appsettings.json`:
+The application can be configured through `appsettings.json` or **environment variables**.
+
+#### Configuration via appsettings.json
 
 ```json
 {
-  "SecretConfiguration": {
-    "SecretName": "dotnet-app-secrets",
+  "AWS": {
     "Region": "us-east-1",
-    "ServiceUrl": "http://localhost:4566",
+    "ServiceURL": "http://localhost:4566",
+    "AccessKey": "test",
+    "SecretKey": "test"
+  },
+  "SecretsManager": {
+    "SecretName": "dotnet-app-secrets",
     "OutputMode": "Both",
-    "EnvFilePath": ".env"
+    "EnvFilePath": ".env",
+    "EnvExamplePath": ".env.example"
   }
 }
 ```
 
+#### Configuration via Environment Variables
+
+The application now supports configuration through environment variables, which take precedence over `appsettings.json`:
+
+**🔷 .NET-style environment variables:**
+```bash
+export AWS__Region="us-east-1"
+export AWS__ServiceURL="http://localhost:4566"
+export AWS__AccessKey="your-access-key"
+export AWS__SecretKey="your-secret-key"
+export SecretsManager__SecretName="my-app-secrets"
+export SecretsManager__OutputMode="Both"
+```
+
+**🌐 AWS SDK standard environment variables:**
+```bash
+export AWS_ACCESS_KEY_ID="your-access-key"
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+export AWS_DEFAULT_REGION="us-east-1"  # or AWS_REGION
+```
+
+**📊 Configuration Precedence Order:**
+1. .NET-style environment variables (`AWS__*`, `SecretsManager__*`)
+2. AWS SDK standard environment variables (`AWS_*`)
+3. Values from `appsettings.json`
+
+**🔐 IAM Role Support:**
+If no explicit credentials are provided, the application will use the AWS SDK credential chain, which includes:
+- IAM roles for EC2 instances
+- IAM roles for ECS tasks
+- IAM roles for Lambda functions
+- AWS credentials file (~/.aws/credentials)
+
 **Configuration Options:**
 - `SecretName`: Name of the secret in AWS Secrets Manager
 - `Region`: AWS region (default: us-east-1)
-- `ServiceUrl`: LocalStack endpoint URL
+- `ServiceURL`: LocalStack endpoint URL (leave empty for real AWS)
+- `AccessKey`/`SecretKey`: AWS credentials (optional with IAM roles)
 - `OutputMode`: How to output secrets (`EnvironmentVariables`, `EnvFile`, or `Both`)
 - `EnvFilePath`: Path for the .env file output
+- `EnvExamplePath`: Path to .env.example file for ARN detection
 
 ### Secret Management
 
