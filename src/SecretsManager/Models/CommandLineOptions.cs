@@ -4,6 +4,11 @@ namespace SecretsManager.Models
 {
     public class CommandLineOptions
     {
+        public CommandLineOptions()
+        {
+            // Default constructor required by CommandLineParser
+        }
+
         [Option('h', "help", Required = false, HelpText = "Display this help message.")]
         public bool Help { get; set; }
 
