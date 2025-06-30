@@ -1,0 +1,27 @@
+# Use .NET SDK for building
+FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build-env
+WORKDIR /app
+
+# Copy solution and project files
+COPY *.sln ./
+COPY src/SecretsManager/*.csproj ./src/SecretsManager/
+COPY src/SecretsManager.Tests/*.csproj ./src/SecretsManager.Tests/
+
+# Restore dependencies
+RUN dotnet restore
+
+# Copy source code
+COPY . .
+
+# Build and publish single-file executable without trimming
+RUN dotnet publish src/SecretsManager/SecretsManager.csproj \
+    -c Release \
+    -r linux-x64 \
+    --self-contained true \
+    -p:PublishSingleFile=true \
+    -p:PublishTrimmed=false \
+    -o /app/dist
+
+# Final stage - copy the binary
+FROM scratch AS export
+COPY --from=build-env /app/dist/SecretsManager /SecretsManager
